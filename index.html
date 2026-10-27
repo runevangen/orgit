@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="nb" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Oppgaver">
+<title>Oppgavetavle</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234f7cff'/%3E%3Crect x='12' y='14' width='16' height='36' rx='4' fill='white'/%3E%3Crect x='36' y='14' width='16' height='22' rx='4' fill='white' opacity='.85'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%234f7cff'/%3E%3Crect x='12' y='14' width='16' height='36' rx='4' fill='white'/%3E%3Crect x='36' y='14' width='16' height='22' rx='4' fill='white' opacity='.85'/%3E%3C/svg%3E">
+<link rel="manifest" href='data:application/manifest+json,{"name":"Oppgavetavle","short_name":"Oppgaver","start_url":".","display":"standalone","background_color":"%230f1115","theme_color":"%234f7cff","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%234f7cff%27/%3E%3C/svg%3E","sizes":"512x512","type":"image/svg+xml","purpose":"any"}]}'>
+<style>
+:root{
+  --bg:#eef0f4;--surface:#ffffff;--col:#e4e7ee;--text:#1b1f29;--muted:#667085;--line:#d5d9e3;
+  --accent:#4f7cff;--accent-text:#ffffff;--danger:#d92d20;--shadow:0 1px 2px rgba(16,24,40,.12);
+  --overlay:rgba(16,24,40,.45);
+}
+@media (prefers-color-scheme:dark){
+  :root[data-theme=auto]{--bg:#0f1115;--surface:#1e222b;--col:#171a21;--text:#e8eaf0;--muted:#98a2b3;--line:#2c313c;--shadow:0 1px 2px rgba(0,0,0,.5);--overlay:rgba(0,0,0,.6)}
+}
+:root[data-theme=dark]{--bg:#0f1115;--surface:#1e222b;--col:#171a21;--text:#e8eaf0;--muted:#98a2b3;--line:#2c313c;--shadow:0 1px 2px rgba(0,0,0,.5);--overlay:rgba(0,0,0,.6)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+input,textarea,select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+textarea{resize:vertical;min-height:80px}
+.hidden{display:none!important}
+
+/* Appramme */
+#app{height:100%;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:nowrap}
+header .grow{flex:1;min-width:0}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;font-weight:600}
+.btn:hover{filter:brightness(.97)}
+.btn.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn.icon{width:38px;height:38px;padding:0;display:grid;place-items:center;font-size:17px}
+.btn.on{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+#boardBtn{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px}
+.avatar{width:28px;height:28px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:12px;font-weight:700;flex:none}
+
+/* Tavle */
+#board{flex:1;display:flex;gap:12px;padding:12px;overflow-x:auto;overflow-y:hidden;align-items:flex-start;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.col{flex:none;width:min(84vw,320px);background:var(--col);border-radius:12px;max-height:100%;display:flex;flex-direction:column;scroll-snap-align:start}
+.col-h{display:flex;align-items:center;gap:6px;padding:10px 10px 6px 12px}
+.col-h h3{margin:0;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.col-h .count{color:var(--muted);font-size:12px}
+.col-h button{border:0;background:transparent;border-radius:6px;padding:2px 8px;font-size:18px;color:var(--muted)}
+.cards{padding:4px 8px;overflow-y:auto;min-height:48px;display:flex;flex-direction:column;gap:8px;flex:0 1 auto}
+.card{background:var(--surface);border-radius:8px;padding:10px;box-shadow:var(--shadow);cursor:pointer;border:1px solid transparent;word-break:break-word}
+.card:hover{border-color:var(--accent)}
+.card.ghost{opacity:.4}
+.card{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.card.chosen{box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.sortable-fallback{opacity:.95!important;transform:rotate(2deg);box-shadow:0 10px 24px rgba(0,0,0,.35);z-index:300}
+body.dragging{cursor:grabbing}
+body.dragging #board{scroll-snap-type:none}
+.card .lbl{display:inline-block;height:8px;width:36px;border-radius:4px;margin-bottom:6px}
+.card .t{font-weight:500}
+.meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;color:var(--muted);font-size:12px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:6px;background:var(--col)}
+.chip.over{background:var(--danger);color:#fff}
+.chip.done{background:#12b76a;color:#fff}
+.meta .sp{flex:1}
+.add{padding:8px}
+.add>button{width:100%;text-align:left;border:0;background:transparent;color:var(--muted);padding:8px;border-radius:8px}
+.add>button:hover{background:rgba(127,127,127,.15)}
+.add form{display:flex;flex-direction:column;gap:6px}
+.add form .row{display:flex;gap:6px}
+.newcol{flex:none;width:min(84vw,320px)}
+.newcol button{width:100%;padding:12px;border:2px dashed var(--line);background:transparent;border-radius:12px;color:var(--muted);font-weight:600}
+.empty{margin:auto;text-align:center;color:var(--muted);padding:40px 20px}
+
+/* Modal / sheet */
+.overlay{position:fixed;inset:0;background:var(--overlay);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+.modal{background:var(--surface);width:100%;max-width:560px;max-height:92vh;overflow-y:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -4px 24px rgba(0,0,0,.25)}
+@media (min-width:700px){.overlay{align-items:center}.modal{border-radius:16px}}
+.modal h2{margin:0 0 12px;font-size:17px}
+.field{margin-bottom:12px}
+.field>label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.titlein{font-size:18px;font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.labels{display:flex;gap:8px;flex-wrap:wrap}
+.labels button{width:34px;height:26px;border-radius:6px;border:2px solid transparent}
+.labels button.sel{border-color:var(--text)}
+.labels button.none{background:var(--col);font-size:12px;color:var(--muted)}
+.check{display:flex;align-items:center;gap:8px;padding:4px 0}
+.check input[type=checkbox]{width:20px;height:20px;flex:none}
+.check span{flex:1;word-break:break-word}
+.check.done span{text-decoration:line-through;color:var(--muted)}
+.check button{border:0;background:transparent;color:var(--muted);font-size:18px}
+.bar{display:flex;gap:8px;justify-content:space-between;margin-top:8px}
+.sheet button.opt{display:block;width:100%;text-align:left;padding:14px;border:0;border-bottom:1px solid var(--line);background:transparent;font-size:16px}
+.sheet button.opt.danger{color:var(--danger)}
+.sheet button.opt.cur{font-weight:700;color:var(--accent)}
+
+/* Innlogging */
+#login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
+.lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
+.lbox h1{margin:0 0 4px;font-size:22px}
+.lbox p{margin:0 0 16px;color:var(--muted)}
+.users{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.user{display:flex;flex-direction:column;align-items:center;gap:6px;border:2px solid transparent;background:var(--col);border-radius:12px;padding:12px 10px;min-width:84px}
+.user.sel{border-color:var(--accent)}
+.user .avatar{width:44px;height:44px;font-size:18px}
+.err{color:var(--danger);min-height:20px;margin:6px 0;font-size:13px}
+.colors{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
+.colors button{width:30px;height:30px;border-radius:50%;border:3px solid transparent}
+.colors button.sel{border-color:var(--text)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#101828;color:#fff;padding:10px 14px;border-radius:10px;z-index:200;font-size:14px;max-width:90vw}
+</style>
+</head>
+<body>
+<div id="login" class="hidden"></div>
+<div id="app" class="hidden">
+  <header>
+    <button id="boardBtn" class="btn grow" title="Bytt tavle"></button>
+    <button id="mineBtn" class="btn" title="Vis bare mine oppgaver">Mine</button>
+    <button id="themeBtn" class="btn icon" title="Tema"></button>
+    <button id="meBtn" class="btn icon" title="Meg"></button>
+  </header>
+  <div id="board"></div>
+</div>
+<div id="modalRoot"></div>
+<div id="toast" class="hidden"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+const SB_URL = 'https://xhvbblbyyyejgyybikme.supabase.co';
+const SB_KEY = 'sb_publishable_H75DAfijNq_6K5zGRmEOQA_bC429A9P';
+// Egen fetch: sender vanlige objekter i stedet for Headers/AbortSignal, slik at appen også fungerer i sandkasse-forhåndsvisninger (postMessage kan ikke klone Headers).
+const plainFetch = (input, init = {}) => {
+  const headers = {};
+  new Headers(init.headers || {}).forEach((v, k) => { headers[k] = v; });
+  const { signal, ...rest } = init;
+  return fetch(typeof input === 'string' ? input : String(input && input.url ? input.url : input), { ...rest, headers });
+};
+const sb = supabase.createClient(SB_URL, SB_KEY, { global: { fetch: plainFetch } });
+
+const LABELS = [
+  {k:'rod',c:'#e5484d',n:'Haster'},{k:'oransje',c:'#f5871f',n:'Viktig'},{k:'gul',c:'#e5b400',n:'Venter'},
+  {k:'gronn',c:'#12b76a',n:'Grei'},{k:'bla',c:'#2e90fa',n:'Info'},{k:'lilla',c:'#7a5af8',n:'Idé'}
+];
+const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d444a0','#667085'];
+const STEP = 1000;
+
+let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
+let onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const initial = n => (n || '?').trim().charAt(0).toUpperCase();
+const userById = id => users.find(u => u.id === id);
+function avatar(u, size) {
+  if (!u) return '';
+  const st = size ? `width:${size}px;height:${size}px;font-size:${Math.round(size*.42)}px;` : '';
+  return `<span class="avatar" style="background:${esc(u.farge)};${st}" title="${esc(u.navn)}">${esc(initial(u.navn))}</span>`;
+}
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 2800);
+}
+function fail(error, what) { if (error) { console.error(error); toast(`Feil: ${what || error.message}`); return true; } return false; }
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} }, del: k => { try { localStorage.removeItem(k); } catch {} } };
+
+/* ---------- Tema ---------- */
+const THEMES = ['auto', 'light', 'dark'];
+const THEME_ICON = { auto: '◐', light: '☀', dark: '☾' };
+const THEME_NAME = { auto: 'Auto', light: 'Lys', dark: 'Mørk' };
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  const b = $('#themeBtn'); b.textContent = THEME_ICON[t]; b.title = 'Tema: ' + THEME_NAME[t];
+}
+function cycleTheme() {
+  const cur = store.get('oppg_tema') || 'auto';
+  const next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
+  store.set('oppg_tema', next); applyTheme(next); toast('Tema: ' + THEME_NAME[next]);
+}
+
+/* ---------- Generiske dialoger ---------- */
+function closeModal() { $('#modalRoot').innerHTML = ''; openCardId = null; }
+function showModal(html, onClose) {
+  const root = $('#modalRoot');
+  root.innerHTML = `<div class="overlay"><div class="modal">${html}</div></div>`;
+  const ov = $('.overlay', root);
+  ov.addEventListener('mousedown', e => { if (e.target === ov) { closeModal(); onClose && onClose(); } });
+  return $('.modal', root);
+}
+function sheet(title, options) {
+  const m = showModal(`<h2>${esc(title)}</h2><div class="sheet">${options.map((o, i) =>
+    `<button class="opt ${o.danger ? 'danger' : ''} ${o.cur ? 'cur' : ''}" data-i="${i}">${esc(o.label)}</button>`).join('')}</div>`);
+  m.querySelectorAll('.opt').forEach(b => b.onclick = () => { closeModal(); options[+b.dataset.i].fn(); });
+}
+
+/* ---------- Innlogging ---------- */
+async function showLogin() {
+  $('#app').classList.add('hidden');
+  const box = $('#login'); box.classList.remove('hidden');
+  box.innerHTML = '<div class="lbox"><p>Laster …</p></div>';
+  const { data, error } = await sb.rpc('oppg_brukere_liste');
+  if (error) { box.innerHTML = `<div class="lbox"><h1>Oppgavetavle</h1><p class="err">Kunne ikke koble til: ${esc(error.message)}</p></div>`; return; }
+  users = data || [];
+  if (users.length === 0) return showCreateUser(true);
+  let sel = null;
+  const draw = () => {
+    box.innerHTML = `<div class="lbox"><h1>Oppgavetavle</h1><p>Hvem er du?</p>
+      <div class="users">${users.map(u => `<button class="user ${sel === u.id ? 'sel' : ''}" data-id="${u.id}">${avatar(u)}<span>${esc(u.navn)}</span></button>`).join('')}</div>
+      ${sel ? `<form id="pinForm"><input id="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN-kode" autofocus>
+      <div class="err" id="err"></div><button class="btn primary" style="width:100%">Logg inn</button></form>` : ''}</div>`;
+    box.querySelectorAll('.user').forEach(b => b.onclick = () => { sel = b.dataset.id; draw(); });
+    const f = $('#pinForm', box);
+    if (f) {
+      $('#pin', box).focus();
+      f.onsubmit = async e => {
+        e.preventDefault();
+        const u = userById(sel);
+        const { data, error } = await sb.rpc('oppg_logg_inn', { p_navn: u.navn, p_pin: $('#pin', box).value });
+        if (error || !data || !data.length) { $('#err', box).textContent = 'Feil PIN-kode'; $('#pin', box).select(); return; }
+        me = data[0]; store.set('oppg_meg', JSON.stringify(me)); box.classList.add('hidden'); start();
+      };
+    }
+  };
+  draw();
+}
+function showCreateUser(first) {
+  const box = $('#login'); box.classList.remove('hidden');
+  let farge = COLORS[0];
+  box.innerHTML = `<div class="lbox"><h1>${first ? 'Velkommen!' : 'Ny person'}</h1>
+    <p>${first ? 'Lag den første brukeren. Flere kan legges til etterpå.' : 'Legg til en person som skal bruke tavlen.'}</p>
+    <form id="nyForm"><div class="field"><label>Navn</label><input id="nNavn" required maxlength="30"></div>
+    <div class="field"><label>PIN-kode (minst 4 tegn)</label><input id="nPin" type="password" inputmode="numeric" minlength="4" required></div>
+    <div class="field"><label>Farge</label><div class="colors">${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === farge ? 'sel' : ''}"></button>`).join('')}</div></div>
+    <div class="err" id="err"></div><button class="btn primary" style="width:100%">${first ? 'Opprett og start' : 'Legg til'}</button></form></div>`;
+  box.querySelectorAll('.colors button').forEach(b => b.onclick = () => { farge = b.dataset.c; box.querySelectorAll('.colors button').forEach(x => x.classList.toggle('sel', x === b)); });
+  $('#nyForm', box).onsubmit = async e => {
+    e.preventDefault();
+    const { data, error } = await sb.rpc('oppg_ny_bruker', { p_navn: $('#nNavn', box).value, p_pin: $('#nPin', box).value, p_farge: farge });
+    if (error) { $('#err', box).textContent = error.message.includes('duplicate') ? 'Navnet er tatt' : error.message; return; }
+    me = data[0]; store.set('oppg_meg', JSON.stringify(me)); box.classList.add('hidden'); start();
+  };
+}
+function addPerson() {
+  const m = showModal(`<h2>Legg til person</h2><form id="apForm">
+    <div class="field"><label>Navn</label><input id="apNavn" required maxlength="30"></div>
+    <div class="field"><label>PIN til den nye (minst 4 tegn)</label><input id="apPin" type="password" inputmode="numeric" minlength="4" required></div>
+    <div class="field"><label>Din egen PIN (for å bekrefte)</label><input id="apMy" type="password" inputmode="numeric" required></div>
+    <div class="field"><label>Farge</label><div class="colors">${COLORS.map((c, i) => `<button type="button" data-c="${c}" style="background:${c}" class="${i === 1 ? 'sel' : ''}"></button>`).join('')}</div></div>
+    <div class="err" id="apErr"></div><div class="bar"><button type="button" class="btn" id="apCancel">Avbryt</button><button class="btn primary">Legg til</button></div></form>`);
+  let farge = COLORS[1];
+  m.querySelectorAll('.colors button').forEach(b => b.onclick = () => { farge = b.dataset.c; m.querySelectorAll('.colors button').forEach(x => x.classList.toggle('sel', x === b)); });
+  $('#apCancel', m).onclick = closeModal;
+  $('#apForm', m).onsubmit = async e => {
+    e.preventDefault();
+    const { error } = await sb.rpc('oppg_ny_bruker', { p_navn: $('#apNavn', m).value, p_pin: $('#apPin', m).value, p_farge: farge, p_admin_navn: me.navn, p_admin_pin: $('#apMy', m).value });
+    if (error) { $('#apErr', m).textContent = error.message.includes('duplicate') ? 'Navnet er tatt' : (error.message.includes('Ikke tillatt') ? 'Feil PIN' : error.message); return; }
+    closeModal(); await loadUsers(); render(); toast('Person lagt til');
+  };
+}
+function logout() { store.del('oppg_meg'); me = null; if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
+
+/* ---------- Data ---------- */
+async function loadUsers() { const { data, error } = await sb.rpc('oppg_brukere_liste'); if (!fail(error)) users = data || []; }
+async function loadBoards() {
+  const { data, error } = await sb.from('oppg_tavler').select('*').order('posisjon').order('opprettet');
+  if (fail(error)) return;
+  boards = data || [];
+  if (!boards.length) { await createBoard('Hjem', true); return; }
+  if (!boards.find(b => b.id === boardId)) boardId = store.get('oppg_tavle');
+  if (!boards.find(b => b.id === boardId)) boardId = boards[0].id;
+}
+async function createBoard(navn, silent) {
+  const { data, error } = await sb.from('oppg_tavler').insert({ navn, posisjon: boards.length }).select().single();
+  if (fail(error)) return;
+  await sb.from('oppg_kolonner').insert(['Å gjøre', 'Pågår', 'Ferdig'].map((t, i) => ({ tavle_id: data.id, tittel: t, posisjon: (i + 1) * STEP })));
+  boards.push(data); boardId = data.id; store.set('oppg_tavle', boardId);
+  await loadBoard(); if (!silent) toast('Tavle opprettet');
+}
+async function loadBoard() {
+  if (!boardId) return;
+  const [c, k] = await Promise.all([
+    sb.from('oppg_kolonner').select('*').eq('tavle_id', boardId).order('posisjon'),
+    sb.from('oppg_kort').select('*').eq('tavle_id', boardId).order('posisjon')
+  ]);
+  if (fail(c.error) || fail(k.error)) return;
+  cols = c.data || []; cards = k.data || [];
+  render();
+}
+function scheduleLoad() {
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(async () => {
+    if (dragging) return scheduleLoad();
+    await loadBoards(); await loadBoard();
+    if (openCardId && !cards.find(c => c.id === openCardId)) closeModal();
+  }, 200);
+}
+function subscribe() {
+  try {
+    if (channel) sb.removeChannel(channel);
+    channel = sb.channel('oppg-live');
+    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
+    channel.subscribe();
+  } catch (e) { console.warn('Sanntid ikke tilgjengelig her – oppdater siden for å se andres endringer', e); }
+}
+async function start() {
+  $('#app').classList.remove('hidden');
+  $('#meBtn').innerHTML = avatar(me, 30);
+  await loadUsers(); await loadBoards(); await loadBoard(); subscribe();
+}
+
+/* ---------- Visning ---------- */
+function render() {
+  const b = boards.find(x => x.id === boardId);
+  $('#boardBtn').textContent = (b ? b.navn : 'Tavle') + ' ▾';
+  $('#mineBtn').classList.toggle('on', onlyMine);
+  const scroll = $('#board').scrollLeft;
+  const lastCol = cols.length ? cols[cols.length - 1].id : null;
+  const today = new Date().toISOString().slice(0, 10);
+  const html = cols.map(col => {
+    let list = cards.filter(c => c.kolonne_id === col.id);
+    if (onlyMine) list = list.filter(c => c.ansvarlig === me.id);
+    return `<section class="col" data-col="${col.id}">
+      <div class="col-h"><h3>${esc(col.tittel)}</h3><span class="count">${list.length}</span><button data-colmenu="${col.id}" aria-label="Kolonnemeny">⋯</button></div>
+      <div class="cards" data-col="${col.id}">${list.map(c => cardHtml(c, col.id === lastCol, today)).join('')}</div>
+      <div class="add"><button data-addopen="${col.id}">+ Legg til kort</button></div></section>`;
+  }).join('') + `<div class="newcol"><button id="newColBtn">+ Ny kolonne</button></div>`;
+  $('#board').innerHTML = html;
+  $('#board').scrollLeft = scroll;
+  document.querySelectorAll('.cards').forEach(el => new Sortable(el, {
+    group: 'kort', animation: 150,
+    forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4,   // pekerbasert dra-og-slipp: lik oppførsel med mus og berøring
+    delay: 150, delayOnTouchOnly: true, touchStartThreshold: 8,        // på mobil: hold inne et øyeblikk, så kan du fortsatt rulle som vanlig
+    scroll: true, bubbleScroll: true, scrollSensitivity: 70, scrollSpeed: 14, emptyInsertThreshold: 24,
+    ghostClass: 'ghost', chosenClass: 'chosen',
+    onStart: () => { dragging = true; document.body.classList.add('dragging'); try { navigator.vibrate && navigator.vibrate(15); } catch {} },
+    onEnd: onDrop
+  }));
+}
+function cardHtml(c, isLast, today) {
+  const lbl = LABELS.find(l => l.k === c.etikett);
+  const cl = Array.isArray(c.sjekkliste) ? c.sjekkliste : [];
+  const done = cl.filter(x => x.d).length;
+  const u = userById(c.ansvarlig);
+  let due = '';
+  if (c.frist) {
+    const over = !isLast && c.frist < today;
+    const d = new Date(c.frist + 'T00:00:00').toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' });
+    due = `<span class="chip ${over ? 'over' : ''}">📅 ${esc(d)}</span>`;
+  }
+  return `<div class="card" data-id="${c.id}">
+    ${lbl ? `<span class="lbl" style="background:${lbl.c}" title="${esc(lbl.n)}"></span>` : ''}
+    <div class="t">${esc(c.tittel)}</div>
+    <div class="meta">${due}${c.beskrivelse ? '<span title="Har beskrivelse">≡</span>' : ''}${cl.length ? `<span class="chip ${done === cl.length ? 'done' : ''}">☑ ${done}/${cl.length}</span>` : ''}<span class="sp"></span>${avatar(u)}</div></div>`;
+}
+
+/* ---------- Dra og slipp ---------- */
+async function onDrop(evt) {
+  const id = evt.item.dataset.id, toCol = evt.to.dataset.col;
+  const sibs = [...evt.to.children].filter(el => el.classList.contains('card'));
+  const i = sibs.indexOf(evt.item);
+  const pos = el => cards.find(c => c.id === el.dataset.id).posisjon;
+  const prev = sibs[i - 1], next = sibs[i + 1];
+  let p;
+  if (prev && next) p = (pos(prev) + pos(next)) / 2;
+  else if (prev) p = pos(prev) + STEP;
+  else if (next) p = pos(next) - STEP;
+  else p = STEP;
+  const c = cards.find(x => x.id === id);
+  c.kolonne_id = toCol; c.posisjon = p;
+  dragging = false; lastDrop = Date.now(); document.body.classList.remove('dragging'); render();
+  const { error } = await sb.from('oppg_kort').update({ kolonne_id: toCol, posisjon: p, oppdatert: new Date().toISOString() }).eq('id', id);
+  fail(error, 'kunne ikke flytte kortet');
+}
+
+/* ---------- Kort ---------- */
+function nextPos(colId) {
+  const ps = cards.filter(c => c.kolonne_id === colId).map(c => c.posisjon);
+  return (ps.length ? Math.max(...ps) : 0) + STEP;
+}
+async function addCard(colId, tittel) {
+  tittel = tittel.trim(); if (!tittel) return;
+  const row = { tavle_id: boardId, kolonne_id: colId, tittel, posisjon: nextPos(colId), ansvarlig: onlyMine ? me.id : null };
+  const { data, error } = await sb.from('oppg_kort').insert(row).select().single();
+  if (fail(error, 'kunne ikke lagre kortet')) return;
+  cards.push(data); render();
+}
+async function saveCard(id, patch) {
+  const c = cards.find(x => x.id === id); if (!c) return;
+  Object.assign(c, patch);
+  const { error } = await sb.from('oppg_kort').update({ ...patch, oppdatert: new Date().toISOString() }).eq('id', id);
+  fail(error, 'kunne ikke lagre endringen'); render();
+}
+function openCard(id) {
+  const c = cards.find(x => x.id === id); if (!c) return;
+  openCardId = id;
+  const render_ = () => {
+    const cur = cards.find(x => x.id === id); if (!cur) return closeModal();
+    const cl = Array.isArray(cur.sjekkliste) ? cur.sjekkliste : [];
+    const m = showModal(`
+      <div class="field"><input class="titlein" id="fT" value="${esc(cur.tittel)}" maxlength="200" aria-label="Tittel"></div>
+      <div class="two">
+        <div class="field"><label>Ansvarlig</label><select id="fA"><option value="">Ingen</option>${users.map(u => `<option value="${u.id}" ${u.id === cur.ansvarlig ? 'selected' : ''}>${esc(u.navn)}</option>`).join('')}</select></div>
+        <div class="field"><label>Frist</label><input type="date" id="fF" value="${cur.frist || ''}"></div>
+      </div>
+      <div class="field"><label>Kolonne</label><select id="fK">${cols.map(k => `<option value="${k.id}" ${k.id === cur.kolonne_id ? 'selected' : ''}>${esc(k.tittel)}</option>`).join('')}</select></div>
+      <div class="field"><label>Etikett</label><div class="labels"><button class="none ${!cur.etikett ? 'sel' : ''}" data-l="">Ingen</button>${LABELS.map(l => `<button style="background:${l.c}" class="${cur.etikett === l.k ? 'sel' : ''}" data-l="${l.k}" title="${esc(l.n)}"></button>`).join('')}</div></div>
+      <div class="field"><label>Beskrivelse</label><textarea id="fB" placeholder="Legg til detaljer …">${esc(cur.beskrivelse)}</textarea></div>
+      <div class="field"><label>Sjekkliste</label>
+        ${cl.map((x, i) => `<div class="check ${x.d ? 'done' : ''}"><input type="checkbox" data-ci="${i}" ${x.d ? 'checked' : ''}><span>${esc(x.t)}</span><button data-cd="${i}" aria-label="Fjern">✕</button></div>`).join('')}
+        <form id="fCF" style="display:flex;gap:6px;margin-top:6px"><input id="fCI" placeholder="Nytt punkt …"><button class="btn">+</button></form></div>
+      <div class="bar"><button class="btn danger" id="fDel">Slett kort</button><button class="btn primary" id="fOk">Ferdig</button></div>`, () => {});
+    const save = patch => saveCard(id, patch);
+    $('#fT', m).onchange = e => { const v = e.target.value.trim(); if (v) save({ tittel: v }); else e.target.value = cur.tittel; };
+    $('#fB', m).onchange = e => save({ beskrivelse: e.target.value });
+    $('#fF', m).onchange = e => save({ frist: e.target.value || null });
+    $('#fA', m).onchange = e => save({ ansvarlig: e.target.value || null });
+    $('#fK', m).onchange = e => save({ kolonne_id: e.target.value, posisjon: nextPos(e.target.value) });
+    m.querySelectorAll('.labels button').forEach(b => b.onclick = async () => { await save({ etikett: b.dataset.l || null }); render_(); });
+    m.querySelectorAll('[data-ci]').forEach(b => b.onchange = async () => { const n = cl.map((x, i) => i === +b.dataset.ci ? { ...x, d: b.checked } : x); await save({ sjekkliste: n }); render_(); });
+    m.querySelectorAll('[data-cd]').forEach(b => b.onclick = async () => { await save({ sjekkliste: cl.filter((_, i) => i !== +b.dataset.cd) }); render_(); });
+    $('#fCF', m).onsubmit = async e => { e.preventDefault(); const v = $('#fCI', m).value.trim(); if (!v) return; await save({ sjekkliste: [...cl, { t: v, d: false }] }); render_(); setTimeout(() => $('#fCI')?.focus(), 0); };
+    $('#fOk', m).onclick = () => { const t = $('#fT', m).value.trim(); const d = $('#fB', m).value; const p = {}; if (t && t !== cur.tittel) p.tittel = t; if (d !== cur.beskrivelse) p.beskrivelse = d; if (Object.keys(p).length) save(p); closeModal(); };
+    $('#fDel', m).onclick = async () => {
+      if (!confirm('Slette dette kortet?')) return;
+      const { error } = await sb.from('oppg_kort').delete().eq('id', id);
+      if (fail(error, 'kunne ikke slette')) return;
+      cards = cards.filter(x => x.id !== id); closeModal(); render();
+    };
+  };
+  render_();
+}
+
+/* ---------- Kolonner og tavler ---------- */
+function colMenu(id) {
+  const col = cols.find(c => c.id === id), i = cols.indexOf(col);
+  const opts = [{ label: 'Gi nytt navn', fn: async () => { const v = prompt('Nytt navn på kolonnen:', col.tittel); if (v && v.trim()) { const { error } = await sb.from('oppg_kolonner').update({ tittel: v.trim() }).eq('id', id); if (!fail(error)) { col.tittel = v.trim(); render(); } } } }];
+  if (i > 0) opts.push({ label: 'Flytt til venstre', fn: () => moveCol(i, -1) });
+  if (i < cols.length - 1) opts.push({ label: 'Flytt til høyre', fn: () => moveCol(i, 1) });
+  opts.push({ label: 'Slett kolonne (og kortene i den)', danger: true, fn: async () => {
+    if (!confirm(`Slette «${col.tittel}» og alle kort i den?`)) return;
+    const { error } = await sb.from('oppg_kolonner').delete().eq('id', id);
+    if (!fail(error)) { cols = cols.filter(c => c.id !== id); cards = cards.filter(c => c.kolonne_id !== id); render(); }
+  } });
+  sheet(col.tittel, opts);
+}
+async function moveCol(i, dir) {
+  const a = cols[i], b = cols[i + dir];
+  [a.posisjon, b.posisjon] = [b.posisjon, a.posisjon];
+  cols.sort((x, y) => x.posisjon - y.posisjon); render();
+  const r = await Promise.all([sb.from('oppg_kolonner').update({ posisjon: a.posisjon }).eq('id', a.id), sb.from('oppg_kolonner').update({ posisjon: b.posisjon }).eq('id', b.id)]);
+  r.forEach(x => fail(x.error));
+}
+async function addColumn() {
+  const v = prompt('Navn på ny kolonne:'); if (!v || !v.trim()) return;
+  const pos = (cols.length ? Math.max(...cols.map(c => c.posisjon)) : 0) + STEP;
+  const { data, error } = await sb.from('oppg_kolonner').insert({ tavle_id: boardId, tittel: v.trim(), posisjon: pos }).select().single();
+  if (!fail(error)) { cols.push(data); render(); }
+}
+function boardMenu() {
+  const opts = boards.map(b => ({ label: b.navn, cur: b.id === boardId, fn: async () => { boardId = b.id; store.set('oppg_tavle', boardId); await loadBoard(); } }));
+  opts.push({ label: '+ Ny tavle', fn: async () => { const v = prompt('Navn på ny tavle:'); if (v && v.trim()) createBoard(v.trim()); } });
+  opts.push({ label: 'Gi denne tavlen nytt navn', fn: async () => { const b = boards.find(x => x.id === boardId); const v = prompt('Nytt navn:', b.navn); if (v && v.trim()) { const { error } = await sb.from('oppg_tavler').update({ navn: v.trim() }).eq('id', boardId); if (!fail(error)) { b.navn = v.trim(); render(); } } } });
+  if (boards.length > 1) opts.push({ label: 'Slett denne tavlen', danger: true, fn: async () => {
+    const b = boards.find(x => x.id === boardId);
+    if (!confirm(`Slette tavlen «${b.navn}» med alle kort?`)) return;
+    const { error } = await sb.from('oppg_tavler').delete().eq('id', boardId);
+    if (fail(error)) return;
+    boards = boards.filter(x => x.id !== boardId); boardId = boards[0].id; store.set('oppg_tavle', boardId); await loadBoard();
+  } });
+  sheet('Tavler', opts);
+}
+function meMenu() {
+  sheet(me.navn, [
+    { label: 'Legg til person', fn: addPerson },
+    { label: 'Tema: ' + THEME_NAME[store.get('oppg_tema') || 'auto'] + ' (trykk for å bytte)', fn: cycleTheme },
+    { label: 'Logg ut', danger: true, fn: logout }
+  ]);
+}
+
+/* ---------- Hendelser ---------- */
+document.addEventListener('click', e => {
+  const t = e.target;
+  const card = t.closest('.card'); if (card) { if (!dragging && Date.now() - lastDrop > 400) openCard(card.dataset.id); return; }
+  const cm = t.closest('[data-colmenu]'); if (cm) return colMenu(cm.dataset.colmenu);
+  const ao = t.closest('[data-addopen]');
+  if (ao) {
+    const colId = ao.dataset.addopen, wrap = ao.parentElement;
+    wrap.innerHTML = `<form><textarea rows="2" placeholder="Tittel på kortet …" style="min-height:56px"></textarea><div class="row"><button class="btn primary">Legg til</button><button type="button" class="btn" data-addcancel>Avbryt</button></div></form>`;
+    const ta = $('textarea', wrap); ta.focus();
+    ta.onkeydown = ev => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); $('form', wrap).requestSubmit(); } };
+    $('form', wrap).onsubmit = async ev => { ev.preventDefault(); const v = ta.value; await addCard(colId, v); const w = document.querySelector(`.col[data-col="${colId}"] .add button`); if (w) w.click(); };
+    return;
+  }
+  if (t.closest('[data-addcancel]')) return render();
+  if (t.closest('#newColBtn')) return addColumn();
+});
+$('#boardBtn').onclick = boardMenu;
+$('#meBtn').onclick = meMenu;
+$('#themeBtn').onclick = cycleTheme;
+$('#mineBtn').onclick = () => { onlyMine = !onlyMine; render(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && me) scheduleLoad(); });
+
+/* ---------- Oppstart ---------- */
+(async function init() {
+  applyTheme(store.get('oppg_tema') || 'auto');
+  boardId = store.get('oppg_tavle');
+  try { me = JSON.parse(store.get('oppg_meg') || 'null'); } catch { me = null; }
+  if (me && me.id) { $('#login').classList.add('hidden'); start(); } else showLogin();
+})();
+</script>
+</body>
+</html>
