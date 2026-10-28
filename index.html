@@ -156,6 +156,7 @@ body.dragging #board{scroll-snap-type:none}
 .gtable.full{outline:2px solid var(--danger);outline-offset:-2px}
 .gth{display:flex;align-items:center;gap:6px;padding:2px 4px 8px}
 .gth h3{margin:0;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gth h3 small{color:var(--muted);font-weight:400;margin-left:6px}
 .gth .cnt{font-size:12px;color:var(--muted)}
 .gth .cnt.over{color:var(--danger);font-weight:700}
 .gth button{border:0;background:transparent;font-size:18px;color:var(--muted);padding:2px 8px}
@@ -248,7 +249,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -350,7 +351,7 @@ function showCreateUser(first) {
     me = data[0]; saveMe($('#nRemember', box).checked); box.classList.add('hidden'); start();
   };
 }
-function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; groups = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
+function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; groups = []; tableTypes = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
 
 /* ---------- Data ---------- */
 async function loadUsers() { const { data, error } = await sb.rpc('oppg_brukere_liste'); if (!fail(error)) users = data || []; }
@@ -371,15 +372,16 @@ async function createBoard(navn, silent) {
 }
 async function loadBoard() {
   if (!boardId) return;
-  const [c, k, g, t, gr] = await Promise.all([
+  const [c, k, g, t, gr, ty] = await Promise.all([
     sb.from('oppg_kolonner').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_kort').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_gjester').select('*').eq('tavle_id', boardId).order('opprettet'),
     sb.from('oppg_bord').select('*').eq('tavle_id', boardId).order('posisjon'),
-    sb.from('oppg_grupper').select('*').eq('tavle_id', boardId).order('opprettet')
+    sb.from('oppg_grupper').select('*').eq('tavle_id', boardId).order('opprettet'),
+    sb.from('oppg_bordtyper').select('*').eq('tavle_id', boardId).order('plasser').order('opprettet')
   ]);
   if (fail(c.error) || fail(k.error)) return;
-  if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || [];
+  if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || [];
   const allCols = c.data || []; cols = allCols.filter(x => !x.arkivert); archCols = allCols.filter(x => x.arkivert); cards = k.data || [];
   await loadActivity(); await loadFiles();
   render();
@@ -397,7 +399,7 @@ function subscribe() {
   try {
     if (channel) sb.removeChannel(channel);
     channel = sb.channel('oppg-live');
-    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord', 'oppg_grupper'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
+    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord', 'oppg_grupper', 'oppg_bordtyper'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
     channel.subscribe();
   } catch (e) { console.warn('Sanntid ikke tilgjengelig her – oppdater siden for å se andres endringer', e); }
 }
@@ -765,9 +767,9 @@ function renderGuests() {
     const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}</div></div>`;
     const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Plantegning</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
     body = `${sum}${viewToggle}<div class="gunp"><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
-      <div class="gtables">${gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
+      <div class="gtables">${gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div>
-      <button class="btn" id="gNewTable" style="width:100%;margin-top:10px">+ Nytt bord</button>`;
+      <div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>`;
   }
   el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
     <div class="gtabs"><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bordplassering</button></div><div class="gbody">${body}</div>`;
@@ -783,6 +785,7 @@ function renderGuests() {
     bindGuestRows($('#gList', el));
   } else {
     $('#gNewTable', el).onclick = addTable;
+    $('#gTypes', el).onclick = manageTypes;
     el.querySelectorAll('[data-tmenu]').forEach(x => x.onclick = () => tableMenu(x.dataset.tmenu));
     el.querySelectorAll('.gchip').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) editGuest(x.dataset.id); });
     el.querySelectorAll('[data-gview]').forEach(x => x.onclick = () => { gView = x.dataset.gview; renderGuests(); });
@@ -868,7 +871,7 @@ function planTable(t) {
     inner = `<div class="gcenter ${over ? 'over' : ''}" style="left:${W / 2 - d / 2}px;top:${H / 2 - d / 2}px;width:${d}px;height:${d}px;border-radius:50%">${centre}</div>`;
     for (let k = 0; k < n; k++) { const a = -Math.PI / 2 + k * 2 * Math.PI / n; inner += seat(k, W / 2 + R * Math.cos(a), H / 2 + R * Math.sin(a)); }
   }
-  return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div><div class="gplanwrap"><div class="gplan" style="width:${W}px;height:${H}px">${inner}</div></div></div>`;
+  return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div><div class="gplanwrap"><div class="gplan" style="width:${W}px;height:${H}px">${inner}</div></div></div>`;
 }
 function seatPicker(tid) {
   const t = tables.find(x => x.id === tid); if (!t) return;
@@ -903,25 +906,91 @@ function groupMenu(id) {
     } }
   ]);
 }
-async function addTable() {
-  const navn = prompt('Navn på bordet:', `Bord ${tables.length + 1}`); if (!navn || !navn.trim()) return;
-  const pl = parseInt(prompt('Antall plasser:', '8'), 10); if (!(pl > 0)) return toast('Skriv et positivt tall');
-  const pos = (tables.length ? Math.max(...tables.map(t => t.posisjon)) : 0) + STEP;
-  const { data, error } = await sb.from('oppg_bord').insert({ tavle_id: boardId, navn: navn.trim(), plasser: Math.min(100, pl), posisjon: pos }).select().single();
-  if (!fail(error, 'kunne ikke lage bordet')) { tables.push(data); renderGuests(); }
+const tCap = t => { const ty = tableTypes.find(x => x.id === t.type_id); return `<small>${esc(ty ? ty.navn : t.plasser + ' pl.')}${t.form === 'rektangel' ? ' · rektangulært' : ''}</small>`; };
+const FORMS = { rund: 'Rundt', rektangel: 'Rektangulært' };
+const DEFAULT_TYPES = [['4-personsbord', 4, 'rektangel'], ['6-personsbord', 6, 'rund'], ['8-personsbord', 8, 'rund'], ['10-personsbord', 10, 'rund']];
+function addTable() {
+  const custom = !tableTypes.length;
+  const m = showModal(`<h2>Nytt bord</h2><form id="atF">
+    <div class="field"><label>Bordtype</label><select id="atT">${tableTypes.map(x => `<option value="${x.id}">${esc(x.navn)} · ${x.plasser} plasser · ${FORMS[x.form].toLowerCase()}</option>`).join('')}<option value="">Egendefinert …</option></select></div>
+    <div id="atC" class="${custom ? '' : 'hidden'}"><div class="two"><div class="field"><label>Plasser</label><input id="atP" type="number" min="1" max="100" value="8"></div>
+      <div class="field"><label>Form</label><select id="atS"><option value="rund">Rundt</option><option value="rektangel">Rektangulært</option></select></div></div></div>
+    <div class="field"><label>Antall bord</label><input id="atN" type="number" min="1" max="40" value="1"></div>
+    <div class="bar"><button type="button" class="btn" id="atX">Avbryt</button><button class="btn primary">Legg til</button></div></form>`);
+  if (custom) $('#atT', m).value = '';
+  $('#atT', m).onchange = e => $('#atC', m).classList.toggle('hidden', !!e.target.value);
+  $('#atX', m).onclick = closeModal;
+  $('#atF', m).onsubmit = async e => {
+    e.preventDefault();
+    const ty = tableTypes.find(x => x.id === $('#atT', m).value), n = Math.min(40, Math.max(1, parseInt($('#atN', m).value, 10) || 1));
+    const plasser = ty ? ty.plasser : Math.min(100, Math.max(1, parseInt($('#atP', m).value, 10) || 8)), form = ty ? ty.form : $('#atS', m).value;
+    let pos = (tables.length ? Math.max(...tables.map(t => t.posisjon)) : 0);
+    const rows = Array.from({ length: n }, (_, i) => ({ tavle_id: boardId, navn: `Bord ${tables.length + i + 1}`, plasser, form, type_id: ty ? ty.id : null, posisjon: pos += STEP }));
+    const { data, error } = await sb.from('oppg_bord').insert(rows).select();
+    if (fail(error, 'kunne ikke lage bordene')) return;
+    closeModal(); tables.push(...(data || [])); renderGuests(); toast(n === 1 ? 'Bord lagt til' : `${n} bord lagt til`);
+  };
+}
+function typeForm(ty) {
+  const m = showModal(`<h2>${ty ? 'Rediger bordtype' : 'Ny bordtype'}</h2><form id="tyF">
+    <div class="field"><label>Navn</label><input id="tyN" value="${esc(ty ? ty.navn : '')}" placeholder="F.eks. 6-personsbord" maxlength="60" required></div>
+    <div class="two"><div class="field"><label>Plasser</label><input id="tyP" type="number" min="1" max="100" value="${ty ? ty.plasser : 6}" required></div>
+      <div class="field"><label>Form</label><select id="tyS">${Object.entries(FORMS).map(([k, v]) => `<option value="${k}" ${ty && ty.form === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>
+    ${ty ? '<p style="color:var(--muted);font-size:13px;margin:0 0 8px">Endringer gjelder alle bord av denne typen.</p>' : ''}
+    <div class="bar"><button type="button" class="btn" id="tyX">Avbryt</button><button class="btn primary">Lagre</button></div></form>`);
+  $('#tyX', m).onclick = () => { closeModal(); manageTypes(); };
+  $('#tyF', m).onsubmit = async e => {
+    e.preventDefault();
+    const row = { navn: $('#tyN', m).value.trim(), plasser: Math.min(100, Math.max(1, parseInt($('#tyP', m).value, 10) || 1)), form: $('#tyS', m).value };
+    if (!row.navn) return;
+    if (ty) {
+      const { error } = await sb.from('oppg_bordtyper').update(row).eq('id', ty.id); if (fail(error, 'kunne ikke lagre bordtypen')) return;
+      Object.assign(ty, row);
+      const { error: e2 } = await sb.from('oppg_bord').update({ plasser: row.plasser, form: row.form }).eq('type_id', ty.id); fail(e2, 'kunne ikke oppdatere bordene');
+      tables.forEach(t => { if (t.type_id === ty.id) { t.plasser = row.plasser; t.form = row.form; } });
+    } else {
+      const { data, error } = await sb.from('oppg_bordtyper').insert({ tavle_id: boardId, ...row }).select().single(); if (fail(error, 'kunne ikke lage bordtypen')) return;
+      tableTypes.push(data);
+    }
+    tableTypes.sort((a, b) => a.plasser - b.plasser); closeModal(); renderGuests(); manageTypes();
+  };
+}
+function manageTypes() {
+  const opts = tableTypes.map(x => ({ label: `${x.navn} · ${x.plasser} plasser · ${FORMS[x.form].toLowerCase()} (${tables.filter(t => t.type_id === x.id).length} bord)`, fn: () => typeMenu(x.id) }));
+  opts.push({ label: '+ Ny bordtype', fn: () => typeForm(null) });
+  if (!tableTypes.length) opts.push({ label: 'Legg til vanlige typer (4, 6, 8 og 10 personer)', fn: async () => {
+    const { data, error } = await sb.from('oppg_bordtyper').insert(DEFAULT_TYPES.map(([navn, plasser, form]) => ({ tavle_id: boardId, navn, plasser, form }))).select();
+    if (!fail(error, 'kunne ikke lage bordtypene')) { tableTypes.push(...(data || [])); tableTypes.sort((a, b) => a.plasser - b.plasser); renderGuests(); manageTypes(); }
+  } });
+  sheet('Bordtyper', opts);
+}
+function typeMenu(id) {
+  const ty = tableTypes.find(x => x.id === id); if (!ty) return;
+  sheet(ty.navn, [
+    { label: 'Rediger (navn, plasser, form)', fn: () => typeForm(ty) },
+    { label: 'Slett bordtype (eksisterende bord beholdes)', danger: true, fn: async () => {
+      if (!confirm(`Slette bordtypen «${ty.navn}»? Bord av denne typen beholdes som egendefinerte.`)) return;
+      const { error } = await sb.from('oppg_bordtyper').delete().eq('id', id); if (fail(error, 'kunne ikke slette bordtypen')) return;
+      tableTypes = tableTypes.filter(x => x.id !== id); tables.forEach(t => { if (t.type_id === id) t.type_id = null; }); renderGuests(); manageTypes();
+    } }
+  ]);
 }
 function tableMenu(id) {
   const t = tables.find(x => x.id === id); if (!t) return;
-  sheet(t.navn, [
-    { label: t.form === 'rektangel' ? 'Gjør bordet rundt' : 'Gjør bordet rektangulært', fn: async () => { const f = t.form === 'rektangel' ? 'rund' : 'rektangel'; const { error } = await sb.from('oppg_bord').update({ form: f }).eq('id', id); if (!fail(error)) { t.form = f; renderGuests(); } } },
-    { label: 'Gi nytt navn', fn: async () => { const v = prompt('Nytt navn:', t.navn); if (v && v.trim()) { const { error } = await sb.from('oppg_bord').update({ navn: v.trim() }).eq('id', id); if (!fail(error)) { t.navn = v.trim(); renderGuests(); } } } },
-    { label: `Endre antall plasser (${t.plasser})`, fn: async () => { const v = parseInt(prompt('Antall plasser:', t.plasser), 10); if (!(v > 0)) return; const { error } = await sb.from('oppg_bord').update({ plasser: Math.min(100, v) }).eq('id', id); if (!fail(error)) { t.plasser = Math.min(100, v); renderGuests(); } } },
+  const patch = async p => { const { error } = await sb.from('oppg_bord').update(p).eq('id', id); if (!fail(error)) { Object.assign(t, p); renderGuests(); } };
+  const opts = [];
+  if (tableTypes.length) opts.push({ label: 'Bytt bordtype …', fn: () => sheet('Velg bordtype', tableTypes.map(x => ({ label: `${x.navn} · ${x.plasser} plasser`, cur: x.id === t.type_id, fn: () => patch({ type_id: x.id, plasser: x.plasser, form: x.form }) }))) });
+  opts.push(
+    { label: 'Gi nytt navn', fn: async () => { const v = prompt('Nytt navn:', t.navn); if (v && v.trim()) patch({ navn: v.trim() }); } },
+    { label: `Endre antall plasser (${t.plasser})`, fn: async () => { const v = parseInt(prompt('Antall plasser:', t.plasser), 10); if (v > 0) patch({ plasser: Math.min(100, v), type_id: null }); } },
+    { label: t.form === 'rektangel' ? 'Gjør bordet rundt' : 'Gjør bordet rektangulært', fn: () => patch({ form: t.form === 'rektangel' ? 'rund' : 'rektangel', type_id: null }) },
     { label: 'Slett bord (gjestene blir ikke plassert)', danger: true, fn: async () => {
       if (!confirm(`Slette «${t.navn}»?`)) return;
       const { error } = await sb.from('oppg_bord').delete().eq('id', id); if (fail(error, 'kunne ikke slette bordet')) return;
       tables = tables.filter(x => x.id !== id); guests.forEach(g => { if (g.bord_id === id) g.bord_id = null; }); renderGuests();
     } }
-  ]);
+  );
+  sheet(t.navn, opts);
 }
 function exportGuests() {
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
