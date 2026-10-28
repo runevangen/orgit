@@ -286,7 +286,7 @@ body.dragging #board{scroll-snap-type:none}
 .colors{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
 .colors button{width:36px;height:36px;border-radius:50%;border:3px solid transparent}
 .colors button.sel{border-color:var(--text)}
-#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#101828;color:#fff;padding:10px 14px;border-radius:10px;z-index:200;font-size:14px;max-width:90vw}
+#toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#101828;color:#fff;padding:10px 14px;border-radius:10px;z-index:200;font-size:14px;max-width:90vw}
 </style>
 </head>
 <body>
@@ -521,27 +521,21 @@ function loadImage(src) {
     img.src = url || src;
   });
 }
-async function shrink(file) {
-  const img = await loadImage(file), w = img.naturalWidth, h = img.naturalHeight;
-  const k = Math.min(1, 1600 / Math.max(w, h));
-  const cv = document.createElement('canvas'); cv.width = Math.round(w * k); cv.height = Math.round(h * k);
-  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-  return new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('Kunne ikke behandle bildet')), 'image/jpeg', 0.82));
-}
 async function addPhotos(cardId, list) {
   const card = cards.find(c => c.id === cardId); if (!card) return;
   let ok = 0;
-  for (const f of list) {
+  for (let i = 0; i < list.length; i++) {
     try {
-      toast('Laster opp bilde …');
-      const blob = await shrink(f);
+      const blob = await photoEditor(list[i], { shape: 'free', title: list.length > 1 ? `Juster bilde ${i + 1} av ${list.length}` : 'Juster bilde', skip: list.length > 1 ? 'Hopp over' : 'Avbryt' });
+      if (!blob) continue;
+      toast('Laster opp bilde …', 15000);
       const sti = `${boardId}/${cardId}/${uid()}.jpg`;
       const up = await sb.storage.from(BUCKET).upload(sti, blob, { contentType: 'image/jpeg' });
-      if (fail(up.error, 'kunne ikke laste opp bildet')) continue;
+      if (up.error) { console.error(up.error); toast('Feil: kunne ikke laste opp bildet (' + (up.error.message || 'ukjent feil') + ')', 9000); continue; }
       const { data, error } = await sb.from('oppg_vedlegg').insert({ kort_id: cardId, tavle_id: boardId, sti, bruker_id: me.id }).select().single();
-      if (fail(error, 'kunne ikke lagre bildet')) { await sb.storage.from(BUCKET).remove([sti]); continue; }
+      if (error) { console.error(error); await sb.storage.from(BUCKET).remove([sti]); toast('Feil: kunne ikke lagre bildet (' + error.message + ')', 9000); continue; }
       files.push(data); ok++;
-    } catch (e) { console.error(e); toast('Feil: kunne ikke lese bildet'); }
+    } catch (e) { console.error(e); toast('Feil: ' + (e && e.message ? e.message : 'kunne ikke lese bildet'), 9000); }
   }
   if (ok) { toast(ok === 1 ? 'Bilde lagt til' : `${ok} bilder lagt til`); logAct('kommentar', ok === 1 ? '📷 la til et bilde' : `📷 la til ${ok} bilder`, card); }
   render();
@@ -807,43 +801,50 @@ function gAv(g, cls) {
   return g.bilde_sti ? `<img class="gav ${cls || ''}" style="${st}" src="${esc(pubUrl(g.bilde_sti))}" alt="" loading="lazy">`
     : `<span class="gav ${cls || ''}" style="${st};${c ? 'background:' + esc(c) : ''}">${esc(initial(g.navn))}</span>`;
 }
-function photoEditor(src) {
+function photoEditor(src, opts = {}) {
   return new Promise(async resolve => {
+    const circle = opts.shape !== 'free';
     let img; try { img = await loadImage(src); } catch (e) { toast('Kunne ikke lese bildet. Prøv et annet bilde (JPEG eller PNG).', 7000); return resolve(null); }
-    const P = 300, OUT = 480, st = { ox: 0, oy: 0, zoom: 1, rot: 0, br: 0, ct: 100 };
-    const m = showModal(`<h2>Juster bilde</h2>
-      <div id="peBox" style="position:relative;width:100%;max-width:320px;aspect-ratio:1;margin:0 auto 6px;touch-action:none;overflow:hidden;border-radius:12px;background:#e4e7ee;cursor:grab"><canvas id="peCv" width="${P}" height="${P}" style="width:100%;height:100%;display:block"></canvas><div style="position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.5);border:2px solid #fff;pointer-events:none"></div></div>
-      <p style="color:var(--muted);font-size:12px;text-align:center;margin:0 0 10px">Dra for å flytte. Klyp eller bruk glidebryteren for å zoome. Sirkelen viser utsnittet.</p>
+    const iw = img.naturalWidth, ih = img.naturalHeight, MAXP = 300;
+    const st = { ox: 0, oy: 0, zoom: 1, rot: 0, br: 0, ct: 100, mode: circle ? '1:1' : 'orig' };
+    const aspect = () => st.mode === '1:1' ? 1 : st.mode === '4:3' ? 4 / 3 : st.mode === '3:4' ? 3 / 4 : (Math.abs(st.rot) % 180 === 90 ? ih / iw : iw / ih);
+    const dims = (long, a) => a >= 1 ? [long, Math.round(long / a)] : [Math.round(long * a), long];
+    const cover = (W, H, deg) => { const t = deg * Math.PI / 180, c = Math.abs(Math.cos(t)), sn = Math.abs(Math.sin(t)); return Math.max((W * c + H * sn) / iw, (W * sn + H * c) / ih); };
+    const modes = [['orig', 'Original'], ['4:3', '4:3'], ['1:1', '1:1'], ['3:4', '3:4']];
+    const m = showModal(`<h2>${esc(opts.title || 'Juster bilde')}</h2>
+      <div id="peBox" style="position:relative;width:100%;margin:0 auto 6px;touch-action:none;overflow:hidden;border-radius:12px;background:#e4e7ee;cursor:grab"><canvas id="peCv" style="width:100%;height:100%;display:block"></canvas>${circle ? '<div style="position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.5);border:2px solid #fff;pointer-events:none"></div>' : ''}</div>
+      <p style="color:var(--muted);font-size:12px;text-align:center;margin:0 0 10px">Dra for å flytte. Klyp eller bruk glidebryteren for å zoome.${circle ? ' Sirkelen viser utsnittet.' : ''}</p>
+      ${circle ? '' : `<div class="field"><label>Utsnitt</label><div class="prios">${modes.map(([k, v]) => `<button type="button" data-pm="${k}" class="${st.mode === k ? 'sel' : ''}">${v}</button>`).join('')}</div></div>`}
       <div class="field"><label>Zoom <span id="peZv">100</span> %</label><input id="peZ" type="range" min="100" max="400" value="100"></div>
       <div class="field"><label>Vinkel <span id="peRv">0</span>°</label><div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn" id="peL" aria-label="Roter 90 grader mot venstre">⟲ 90°</button><input id="peR" type="range" min="-180" max="180" value="0" style="flex:1"><button type="button" class="btn" id="peRt" aria-label="Roter 90 grader mot høyre">⟳ 90°</button></div></div>
       <div class="two"><div class="field"><label>Lysstyrke <span id="peBv">0</span></label><input id="peB" type="range" min="-60" max="60" value="0"></div><div class="field"><label>Kontrast <span id="peCv2">100</span> %</label><input id="peC" type="range" min="50" max="180" value="100"></div></div>
-      <div class="bar"><button type="button" class="btn" id="peX">Avbryt</button><button type="button" class="btn" id="peReset">Nullstill</button><button type="button" class="btn primary" id="peOk">Bruk bilde</button></div>`, () => resolve(null));
+      <div class="bar"><button type="button" class="btn" id="peX">${esc(opts.skip || 'Avbryt')}</button><button type="button" class="btn" id="peReset">Nullstill</button><button type="button" class="btn primary" id="peOk">Bruk bilde</button></div>`, () => resolve(null));
     const cv = $('#peCv', m), box = $('#peBox', m);
-    const draw = (c, S, k) => {
-      const x = c.getContext('2d'), base = S / Math.min(img.naturalWidth, img.naturalHeight);
-      x.save(); x.fillStyle = '#e4e7ee'; x.fillRect(0, 0, S, S);
-      x.translate(S / 2 + st.ox * k, S / 2 + st.oy * k); x.rotate(st.rot * Math.PI / 180); const sc = base * st.zoom; x.scale(sc, sc);
-      x.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2); x.restore();
+    const draw = (c, W, H, k) => {
+      const x = c.getContext('2d'); x.save(); x.fillStyle = '#e4e7ee'; x.fillRect(0, 0, W, H);
+      x.translate(W / 2 + st.ox * k, H / 2 + st.oy * k); x.rotate(st.rot * Math.PI / 180); const sc = cover(W, H, st.rot) * st.zoom; x.scale(sc, sc);
+      x.drawImage(img, -iw / 2, -ih / 2); x.restore();
       if (st.br || st.ct !== 100) {
-        const d = x.getImageData(0, 0, S, S), a = d.data, f = st.ct / 100, o = st.br * 2.55;
+        const d = x.getImageData(0, 0, W, H), a = d.data, f = st.ct / 100, o = st.br * 2.55;
         for (let i = 0; i < a.length; i += 4) { a[i] = (a[i] - 128) * f + 128 + o; a[i + 1] = (a[i + 1] - 128) * f + 128 + o; a[i + 2] = (a[i + 2] - 128) * f + 128 + o; }
         x.putImageData(d, 0, 0);
       }
     };
-    let raf = 0; const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => draw(cv, P, 1)); };
-    const sync = () => { $('#peZ', m).value = Math.round(st.zoom * 100); $('#peZv', m).textContent = Math.round(st.zoom * 100); $('#peR', m).value = st.rot; $('#peRv', m).textContent = st.rot; $('#peB', m).value = st.br; $('#peBv', m).textContent = st.br; $('#peC', m).value = st.ct; $('#peCv2', m).textContent = st.ct; redraw(); };
+    const layout = () => { const a = aspect(), [w, h] = dims(MAXP, a); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } box.style.aspectRatio = String(a); box.style.maxWidth = (a >= 1 ? 320 : Math.round(320 * a)) + 'px'; };
+    let raf = 0; const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { layout(); draw(cv, cv.width, cv.height, 1); }); };
+    const sync = () => { $('#peZ', m).value = Math.round(st.zoom * 100); $('#peZv', m).textContent = Math.round(st.zoom * 100); $('#peR', m).value = st.rot; $('#peRv', m).textContent = st.rot; $('#peB', m).value = st.br; $('#peBv', m).textContent = st.br; $('#peC', m).value = st.ct; $('#peCv2', m).textContent = st.ct; m.querySelectorAll('[data-pm]').forEach(b => b.classList.toggle('sel', b.dataset.pm === st.mode)); redraw(); };
     const clampZoom = z => Math.min(4, Math.max(1, z));
     const wrap = d => { d = ((d + 180) % 360 + 360) % 360 - 180; return d === -180 ? 180 : d; };
+    m.querySelectorAll('[data-pm]').forEach(b => b.onclick = () => { st.mode = b.dataset.pm; st.ox = st.oy = 0; sync(); });
     $('#peZ', m).oninput = e => { st.zoom = clampZoom(+e.target.value / 100); sync(); };
     $('#peR', m).oninput = e => { st.rot = +e.target.value; sync(); };
-    $('#peL', m).onclick = () => { st.rot = wrap(st.rot - 90); sync(); };
-    $('#peRt', m).onclick = () => { st.rot = wrap(st.rot + 90); sync(); };
+    $('#peL', m).onclick = () => { st.rot = wrap(st.rot - 90); st.ox = st.oy = 0; sync(); };
+    $('#peRt', m).onclick = () => { st.rot = wrap(st.rot + 90); st.ox = st.oy = 0; sync(); };
     $('#peB', m).oninput = e => { st.br = +e.target.value; sync(); };
     $('#peC', m).oninput = e => { st.ct = +e.target.value; sync(); };
-    $('#peReset', m).onclick = () => { Object.assign(st, { ox: 0, oy: 0, zoom: 1, rot: 0, br: 0, ct: 100 }); sync(); };
-    // dra og klyp
+    $('#peReset', m).onclick = () => { Object.assign(st, { ox: 0, oy: 0, zoom: 1, rot: 0, br: 0, ct: 100, mode: circle ? '1:1' : 'orig' }); sync(); };
     const ptrs = new Map(); let pinch = null;
-    const scaleOf = () => P / box.getBoundingClientRect().width;
+    const scaleOf = () => cv.width / box.getBoundingClientRect().width;
     box.addEventListener('pointerdown', e => { box.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: st.zoom }; } });
     box.addEventListener('pointermove', e => {
       const p0 = ptrs.get(e.pointerId); if (!p0) return;
@@ -857,15 +858,16 @@ function photoEditor(src) {
     box.addEventListener('wheel', e => { e.preventDefault(); st.zoom = clampZoom(st.zoom - e.deltaY * .002); sync(); }, { passive: false });
     $('#peX', m).onclick = () => { closeModal(); resolve(null); };
     $('#peOk', m).onclick = () => {
-      const o = document.createElement('canvas'); o.width = o.height = OUT; draw(o, OUT, OUT / P);
-      o.toBlob(b => { closeModal(); resolve(b); }, 'image/jpeg', 0.88);
+      layout(); const a = aspect(), [W, H] = dims(circle ? 480 : Math.min(1600, Math.max(iw, ih)), a);
+      const o = document.createElement('canvas'); o.width = W; o.height = H; draw(o, W, H, W / cv.width);
+      o.toBlob(b => { closeModal(); resolve(b); }, 'image/jpeg', circle ? 0.88 : 0.85);
     };
     sync();
   });
 }
 async function setGuestPhoto(id, src) {
   const g = guests.find(x => x.id === id); if (!g || !src) return;
-  const blob = await photoEditor(src); if (!blob) return editGuest(id);
+  const blob = await photoEditor(src, { shape: 'circle', title: 'Juster bilde' }); if (!blob) return editGuest(id);
   try {
     toast('Laster opp bilde …', 15000);
     const sti = `${boardId}/gjester/${uid()}.jpg`;
