@@ -254,6 +254,25 @@ body.dragging #board{scroll-snap-type:none}
   .modal{max-width:620px}
 }
 @media (min-width:1500px){#gList{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Mobil først: trykkflater på minst 40 px, og handlingsknapper som alltid er synlige i modaler */
+.col-h button{min-width:44px;min-height:40px;font-size:20px}
+.dot{position:relative}
+.dot::after{content:'';position:absolute;inset:-14px -7px}
+.gtb{min-height:30px;padding:4px 10px;position:relative}
+.gtb::after{content:'';position:absolute;inset:-6px -4px}
+.gview .btn,#gNewTable,#gTypes,#gImg,#gCards,#gManage,#gInv,#gLinks,#gBack,#gCsv{min-height:42px}
+.ftool .btn{min-height:42px;min-width:44px}
+.colors button{width:36px;height:36px}
+.labels button{width:40px;height:36px}
+.labels button.none{width:auto;height:36px;padding:0 14px}
+.check button{min-width:40px;min-height:40px;font-size:20px}
+.gbtn{width:44px;height:40px}
+.gth button{min-width:44px;min-height:40px}
+.gseat .lbl{font-size:11px;max-width:62px}
+.prios button{min-height:40px}
+.modal:has(.bar){padding-bottom:0}
+.modal .bar{position:sticky;bottom:0;z-index:2;margin:14px -16px 0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line)}
+.sheet button.opt{min-height:48px}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -265,7 +284,7 @@ body.dragging #board{scroll-snap-type:none}
 .user .avatar{width:44px;height:44px;font-size:18px}
 .err{color:var(--danger);min-height:20px;margin:6px 0;font-size:13px}
 .colors{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
-.colors button{width:30px;height:30px;border-radius:50%;border:3px solid transparent}
+.colors button{width:36px;height:36px;border-radius:50%;border:3px solid transparent}
 .colors button.sel{border-color:var(--text)}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#101828;color:#fff;padding:10px 14px;border-radius:10px;z-index:200;font-size:14px;max-width:90vw}
 </style>
