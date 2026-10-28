@@ -43,7 +43,7 @@ header .grow{flex:1;min-width:0}
 .avatar{width:28px;height:28px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-size:12px;font-weight:700;flex:none}
 
 /* Tavle */
-#board{flex:1;display:flex;gap:12px;padding:12px;overflow-x:auto;overflow-y:hidden;align-items:flex-start;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+#board{flex:1;display:flex;gap:12px;padding:12px;overflow-x:auto;overflow-y:hidden;align-items:flex-start;scroll-snap-type:x mandatory;scroll-padding:0 12px;scroll-behavior:smooth;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
 .col{flex:none;width:min(84vw,320px);background:var(--col);border-radius:12px;max-height:100%;display:flex;flex-direction:column;scroll-snap-align:start}
 .col-h{display:flex;align-items:center;gap:6px;padding:10px 10px 6px 12px}
 .col-h h3{margin:0;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -70,7 +70,7 @@ body.dragging #board{scroll-snap-type:none}
 .add>button:hover{background:rgba(127,127,127,.15)}
 .add form{display:flex;flex-direction:column;gap:6px}
 .add form .row{display:flex;gap:6px}
-.newcol{flex:none;width:min(84vw,320px)}
+.newcol{flex:none;width:min(84vw,320px);scroll-snap-align:start}
 .newcol button{width:100%;padding:12px;border:2px dashed var(--line);background:transparent;border-radius:12px;color:var(--muted);font-weight:600}
 .empty{margin:auto;text-align:center;color:var(--muted);padding:40px 20px}
 
@@ -439,7 +439,8 @@ function render() {
   $('#boardBtn').textContent = (b ? b.navn : 'Tavle') + ' ▾';
   $('#mineBtn').classList.toggle('on', onlyMine);
   $('#searchBtn').classList.toggle('on', filtering());
-  const scroll = $('#board').scrollLeft;
+  const scroll = $('#board').scrollLeft, vscroll = {};
+  document.querySelectorAll('.cards').forEach(el => { vscroll[el.dataset.col] = el.scrollTop; });
   const lastCol = cols.length ? cols[cols.length - 1].id : null;
   const today = new Date().toISOString().slice(0, 10);
   const html = cols.map(col => {
@@ -450,13 +451,13 @@ function render() {
     const full = col.wip_grense && total >= col.wip_grense, over = col.wip_grense && total > col.wip_grense;
     return `<section class="col ${over ? 'wipfull' : ''}" data-col="${col.id}" style="${col.farge ? `--colc:${esc(col.farge)}` : ''}">
       <div class="col-h"><h3>${esc(col.tittel)}</h3><span class="count ${full ? 'full' : ''}" title="${col.wip_grense ? 'Grense: ' + col.wip_grense : ''}">${filtering() || onlyMine ? list.length + '/' + total : total}${col.wip_grense ? ' / ' + col.wip_grense : ''}</span><button data-colmenu="${col.id}" aria-label="Kolonnemeny">⋯</button></div>
-      <div class="cards" data-col="${col.id}">${list.map(c => cardHtml(c, col.id === lastCol, today)).join('')}</div>
-      <div class="add"><button data-addopen="${col.id}">+ Legg til kort</button></div></section>`;
+      <div class="cards" data-col="${col.id}">${list.map(c => cardHtml(c, col.id === lastCol, today)).join('')}<div class="add"><button data-addopen="${col.id}">+ Legg til kort</button></div></div></section>`;
   }).join('') + `<div class="newcol"><button id="newColBtn">+ Ny kolonne</button></div>`;
   $('#board').innerHTML = html;
-  $('#board').scrollLeft = scroll;
+  $('#board').scrollTo({ left: scroll, behavior: 'instant' });
+  document.querySelectorAll('.cards').forEach(el => { el.scrollTop = vscroll[el.dataset.col] || 0; });
   document.querySelectorAll('.cards').forEach(el => new Sortable(el, {
-    group: 'kort', animation: 150,
+    group: 'kort', animation: 150, draggable: '.card',
     forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4,   // pekerbasert dra-og-slipp: lik oppførsel med mus og berøring
     delay: 150, delayOnTouchOnly: true, touchStartThreshold: 8,        // på mobil: hold inne et øyeblikk, så kan du fortsatt rulle som vanlig
     scroll: true, bubbleScroll: true, scrollSensitivity: 70, scrollSpeed: 14, emptyInsertThreshold: 24,
