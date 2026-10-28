@@ -221,6 +221,8 @@ body.dragging #board{scroll-snap-type:none}
 .invbox .when{font-weight:600;margin-bottom:2px}
 .invbox .txt{white-space:pre-wrap;margin-top:8px;color:var(--text)}
 .invbox .frist{margin-top:8px;color:var(--muted);font-size:13px}
+.gtb{display:inline-block;border:1px dashed var(--line);background:transparent;border-radius:6px;padding:1px 8px;font-size:12px;color:var(--muted);margin-top:4px;cursor:pointer}
+.gtb.set{background:var(--col);border-style:solid;color:var(--text)}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -795,7 +797,7 @@ function closeGuests() { guestsOpen = false; const el = $('#guests'); el.classLi
 function gGuestHtml(g) {
   const st = GST[g.status];
   return `<div class="grw" data-g="${g.id}" title="${st.n}">${gAv(g)}
-    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}${relsOf(g.id).length ? `<small>${relsOf(g.id).map(r => RELT[r.type].i).join('')}</small>` : ''}${gConf.has(g.id) ? '<small title="Relasjonsbrudd">⚠</small>' : ''}${g.svar_tid ? '<small title="Svarte selv">✉</small>' : ''}</div>
+    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}${relsOf(g.id).length ? `<small>${relsOf(g.id).map(r => RELT[r.type].i).join('')}</small>` : ''}${gConf.has(g.id) ? '<small title="Relasjonsbrudd">⚠</small>' : ''}${g.svar_tid ? '<small title="Svarte selv">✉</small>' : ''}${g.status !== 'kommer_ikke' ? `<div><button type="button" class="gtb ${g.bord_id ? 'set' : ''}" data-gtb="${g.id}">🪑 ${g.bord_id ? esc(tName(g.bord_id)) : 'Velg bord'}</button></div>` : ''}</div>
     <button class="gbtn yes ${g.status === 'kommer' ? 'sel' : ''}" data-gs="kommer" data-id="${g.id}" aria-label="Kommer">✔</button>
     <button class="gbtn no ${g.status === 'kommer_ikke' ? 'sel' : ''}" data-gs="kommer_ikke" data-id="${g.id}" aria-label="Kommer ikke">✖</button></div>`;
 }
@@ -806,6 +808,7 @@ function gListHtml() {
 }
 function bindGuestRows(root) {
   root.querySelectorAll('[data-gs]').forEach(b => b.onclick = () => { const g = guests.find(x => x.id === b.dataset.id); saveGuest(g.id, { status: g.status === b.dataset.gs ? 'venter' : b.dataset.gs }); });
+  root.querySelectorAll('[data-gtb]').forEach(b => b.onclick = e => { e.stopPropagation(); pickTable(b.dataset.gtb); });
   root.querySelectorAll('[data-gedit]').forEach(b => b.onclick = () => editGuest(b.dataset.gedit));
 }
 function renderGuests() {
@@ -1101,6 +1104,11 @@ async function showRsvp(token) {
     };
   };
   draw();
+}
+function pickTable(id) {
+  const g = guests.find(x => x.id === id); if (!g) return;
+  if (!tables.length) { toast('Lag et bord først: Bordplassering → + Nytt bord'); gTab = 'bord'; return renderGuests(); }
+  sheet(`Sett ${g.navn} ved bord`, [{ label: 'Ikke plassert', cur: !g.bord_id, fn: () => saveGuest(id, { bord_id: null }) }, ...tables.map(t => ({ label: `${t.navn} · ${seatsUsed(t.id)}/${t.plasser}${grp(g.gruppe_id) ? '' : ''}`, cur: g.bord_id === t.id, fn: () => saveGuest(id, { bord_id: t.id }) }))]);
 }
 function addRelation(id) {
   const g = guests.find(x => x.id === id); if (!g) return;
