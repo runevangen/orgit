@@ -187,6 +187,16 @@ body.dragging #board{scroll-snap-type:none}
 .gwarn button{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;padding:4px 0;font:inherit;cursor:pointer}
 :root[data-theme=dark] .gwarn{background:#3b1c1a;border-color:#7a2e29;color:#fda29b}
 @media (prefers-color-scheme:dark){:root[data-theme=auto] .gwarn{background:#3b1c1a;border-color:#7a2e29;color:#fda29b}}
+/* Lokale (fri plantegning) */
+.floorscroll{height:62vh;min-height:320px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);position:relative;-webkit-overflow-scrolling:touch}
+.floor{position:absolute;left:0;top:0;transform-origin:0 0;background-image:radial-gradient(var(--line) 1px,transparent 1px);background-size:24px 24px}
+.ftable{position:absolute;z-index:2}
+.ftable .gplan{margin:0}
+.ftable .gcenter{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.felem{position:absolute;z-index:1;border:2px dashed var(--muted);background:rgba(127,127,127,.12);border-radius:10px;display:grid;place-items:center;font-weight:600;color:var(--muted);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;font-size:13px;text-align:center;padding:4px;overflow:hidden}
+.ftool{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.ftool .btn{padding:6px 10px}
+.gview .btn{font-size:13px;padding:6px 6px}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -253,7 +263,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let elements = [], gScale = 1, relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -355,7 +365,7 @@ function showCreateUser(first) {
     me = data[0]; saveMe($('#nRemember', box).checked); box.classList.add('hidden'); start();
   };
 }
-function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; groups = []; tableTypes = []; relations = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
+function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; groups = []; tableTypes = []; relations = []; elements = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
 
 /* ---------- Data ---------- */
 async function loadUsers() { const { data, error } = await sb.rpc('oppg_brukere_liste'); if (!fail(error)) users = data || []; }
@@ -376,17 +386,18 @@ async function createBoard(navn, silent) {
 }
 async function loadBoard() {
   if (!boardId) return;
-  const [c, k, g, t, gr, ty, rl] = await Promise.all([
+  const [c, k, g, t, gr, ty, rl, el] = await Promise.all([
     sb.from('oppg_kolonner').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_kort').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_gjester').select('*').eq('tavle_id', boardId).order('opprettet'),
     sb.from('oppg_bord').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_grupper').select('*').eq('tavle_id', boardId).order('opprettet'),
     sb.from('oppg_bordtyper').select('*').eq('tavle_id', boardId).order('plasser').order('opprettet'),
-    sb.from('oppg_relasjoner').select('*').eq('tavle_id', boardId)
+    sb.from('oppg_relasjoner').select('*').eq('tavle_id', boardId),
+    sb.from('oppg_elementer').select('*').eq('tavle_id', boardId).order('opprettet')
   ]);
   if (fail(c.error) || fail(k.error)) return;
-  if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || [];
+  if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || []; if (!el.error) elements = el.data || [];
   const allCols = c.data || []; cols = allCols.filter(x => !x.arkivert); archCols = allCols.filter(x => x.arkivert); cards = k.data || [];
   await loadActivity(); await loadFiles();
   render();
@@ -404,7 +415,7 @@ function subscribe() {
   try {
     if (channel) sb.removeChannel(channel);
     channel = sb.channel('oppg-live');
-    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord', 'oppg_grupper', 'oppg_bordtyper', 'oppg_relasjoner'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
+    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord', 'oppg_grupper', 'oppg_bordtyper', 'oppg_relasjoner', 'oppg_elementer'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
     channel.subscribe();
   } catch (e) { console.warn('Sanntid ikke tilgjengelig her – oppdater siden for å se andres endringer', e); }
 }
@@ -785,10 +796,10 @@ function renderGuests() {
     const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
     const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}</div></div>`;
-    const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Plantegning</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
+    const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Bord</button><button class="btn ${gView === 'floor' ? 'on' : ''}" data-gview="floor">Lokale</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
     const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
     body = `${sum}${warn}${viewToggle}<div class="gunp"><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
-      <div class="gtables">${gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
+      <div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div>
       <div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
       <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Lag bilde av bordplassering (last ned, del, skriv ut)</button>
@@ -814,6 +825,7 @@ function renderGuests() {
     el.querySelectorAll('[data-tmenu]').forEach(x => x.onclick = () => tableMenu(x.dataset.tmenu));
     el.querySelectorAll('.gchip').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) editGuest(x.dataset.id); });
     el.querySelectorAll('[data-wi]').forEach(x => x.onclick = () => editGuest(issues[+x.dataset.wi].a.id));
+    if (gView === 'floor') bindFloor(el);
     el.querySelectorAll('[data-gview]').forEach(x => x.onclick = () => { gView = x.dataset.gview; renderGuests(); });
     el.querySelectorAll('[data-seat-g]').forEach(x => x.onclick = () => editGuest(x.dataset.seatG));
     el.querySelectorAll('[data-seat-e]').forEach(x => x.onclick = () => seatPicker(x.dataset.seatE));
@@ -879,7 +891,7 @@ function editGuest(id) {
     guests = guests.filter(x => x.id !== id); relations = relations.filter(r => r.a_id !== id && r.b_id !== id); closeModal(); renderGuests();
   };
 }
-function planTable(t) {
+function planParts(t) {
   const byGrp = (a, b) => ((grp(a.gruppe_id) || { navn: '\uffff' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '\uffff' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb');
   const list = guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').sort(byGrp);
   const slots = []; list.forEach(g => { for (let i = 0; i < g.antall; i++) slots.push({ g, i }); });
@@ -904,7 +916,64 @@ function planTable(t) {
     inner = `<div class="gcenter ${over ? 'over' : ''}" style="left:${W / 2 - d / 2}px;top:${H / 2 - d / 2}px;width:${d}px;height:${d}px;border-radius:50%">${centre}</div>`;
     for (let k = 0; k < n; k++) { const a = -Math.PI / 2 + k * 2 * Math.PI / n; inner += seat(k, W / 2 + R * Math.cos(a), H / 2 + R * Math.sin(a)); }
   }
+  return { W, H, inner, used, over };
+}
+function planTable(t) {
+  const { W, H, inner, used, over } = planParts(t);
   return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div><div class="gplanwrap"><div class="gplan" style="width:${W}px;height:${H}px">${inner}</div></div></div>`;
+}
+const FLOOR_PRESETS = [['Scene', 240, 120], ['Dansegulv', 220, 220], ['Bar', 200, 70], ['Buffet', 260, 70], ['Inngang', 120, 50], ['Garderobe', 140, 60], ['Toalett', 100, 70], ['Annet …', 160, 80]];
+function ensureFloorPos(force) {
+  const need = tables.filter(t => force || t.x == null || t.y == null); if (!need.length) return;
+  let x = 40, y = 40, rowH = 0; const W = 1100;
+  (force ? tables : need).forEach(t => {
+    const g = planParts(t); if (x + g.W > W && x > 40) { x = 40; y += rowH + 30; rowH = 0; }
+    t.x = x; t.y = y; x += g.W + 30; rowH = Math.max(rowH, g.H);
+  });
+  tables.filter(t => force || need.includes(t)).forEach(t => sb.from('oppg_bord').update({ x: t.x, y: t.y }).eq('id', t.id).then(r => { if (r.error) console.error(r.error); }));
+}
+function floorHtml() {
+  ensureFloorPos();
+  const parts = tables.map(t => ({ t, g: planParts(t) }));
+  const fw = Math.max(1200, ...parts.map(p => p.t.x + p.g.W + 120), ...elements.map(e => e.x + e.w + 120)), fh = Math.max(800, ...parts.map(p => p.t.y + p.g.H + 120), ...elements.map(e => e.y + e.h + 120));
+  return `<div class="ftool"><button class="btn" id="fAdd">+ Element</button><button class="btn" id="fZm" aria-label="Zoom ut">−</button><button class="btn" id="fZp" aria-label="Zoom inn">+</button><span style="align-self:center;color:var(--muted);font-size:12px">${Math.round(gScale * 100)} %</span><button class="btn" id="fAuto">Ordne bordene</button></div>
+    <div class="floorscroll"><div style="position:relative;width:${fw * gScale}px;height:${fh * gScale}px"><div class="floor" id="floor" style="width:${fw}px;height:${fh}px;transform:scale(${gScale})">
+      ${elements.map(e => `<div class="felem" data-fe="${e.id}" style="left:${e.x}px;top:${e.y}px;width:${e.w}px;height:${e.h}px">${esc(e.navn)}</div>`).join('')}
+      ${parts.map(({ t, g }) => `<div class="ftable" data-ft="${t.id}" style="left:${t.x}px;top:${t.y}px;width:${g.W}px;height:${g.H}px"><div class="gplan" style="width:${g.W}px;height:${g.H}px">${g.inner}</div></div>`).join('')}
+    </div></div></div>
+    <p style="color:var(--muted);font-size:12px;margin:6px 0 0">Dra i midten av et bord for å flytte det. Trykk på midten for bordmeny. Trykk på en plass for å sette eller endre gjest.</p>`;
+}
+function bindFloor(el) {
+  const drag = (handle, mover, onEnd, onTap) => handle.addEventListener('pointerdown', e => {
+    if (e.button) return; e.preventDefault(); e.stopPropagation();
+    const sx = e.clientX, sy = e.clientY, ox = parseFloat(mover.style.left) || 0, oy = parseFloat(mover.style.top) || 0; let moved = false;
+    try { handle.setPointerCapture(e.pointerId); } catch {}
+    const mv = ev => { const dx = (ev.clientX - sx) / gScale, dy = (ev.clientY - sy) / gScale; if (!moved && Math.hypot(dx, dy) * gScale < 5) return; moved = true; dragging = true; mover.style.left = Math.max(0, Math.round(ox + dx)) + 'px'; mover.style.top = Math.max(0, Math.round(oy + dy)) + 'px'; };
+    const up = () => { dragging = false; handle.removeEventListener('pointermove', mv); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up); if (moved) onEnd(parseFloat(mover.style.left), parseFloat(mover.style.top)); else if (onTap) onTap(); };
+    handle.addEventListener('pointermove', mv); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
+  });
+  el.querySelectorAll('.ftable').forEach(n => { const t = tables.find(x => x.id === n.dataset.ft), c = $('.gcenter', n); if (!t || !c) return;
+    drag(c, n, async (x, y) => { t.x = x; t.y = y; const { error } = await sb.from('oppg_bord').update({ x, y }).eq('id', t.id); fail(error, 'kunne ikke lagre plasseringen'); }, () => tableMenu(t.id)); });
+  el.querySelectorAll('.felem').forEach(n => { const e = elements.find(x => x.id === n.dataset.fe); if (!e) return;
+    drag(n, n, async (x, y) => { e.x = x; e.y = y; const { error } = await sb.from('oppg_elementer').update({ x, y }).eq('id', e.id); fail(error, 'kunne ikke lagre plasseringen'); }, () => elementMenu(e.id)); });
+  const zoom = d => { gScale = Math.min(1.5, Math.max(.4, Math.round((gScale + d) * 100) / 100)); renderGuests(); };
+  $('#fZm', el).onclick = () => zoom(-.15); $('#fZp', el).onclick = () => zoom(.15);
+  $('#fAuto', el).onclick = () => { if (confirm('Ordne alle bordene automatisk i rader? Egen plassering overskrives.')) { ensureFloorPos(true); renderGuests(); } };
+  $('#fAdd', el).onclick = () => sheet('Legg til element', FLOOR_PRESETS.map(([n, w, h]) => ({ label: n, fn: async () => {
+    let navn = n; if (n === 'Annet …') { navn = prompt('Navn på elementet:'); if (!navn || !navn.trim()) return; navn = navn.trim(); }
+    const off = (elements.length % 6) * 24 + 40;
+    const { data, error } = await sb.from('oppg_elementer').insert({ tavle_id: boardId, navn, x: off, y: off, w, h }).select().single();
+    if (!fail(error, 'kunne ikke lage elementet')) { elements.push(data); renderGuests(); }
+  } })));
+}
+function elementMenu(id) {
+  const e = elements.find(x => x.id === id); if (!e) return;
+  const patch = async p => { const { error } = await sb.from('oppg_elementer').update(p).eq('id', id); if (!fail(error)) { Object.assign(e, p); renderGuests(); } };
+  sheet(e.navn, [
+    { label: 'Gi nytt navn', fn: () => { const v = prompt('Nytt navn:', e.navn); if (v && v.trim()) patch({ navn: v.trim() }); } },
+    { label: `Endre størrelse (${Math.round(e.w)} × ${Math.round(e.h)})`, fn: () => { const v = prompt('Bredde × høyde (for eksempel 240x120):', `${Math.round(e.w)}x${Math.round(e.h)}`); const m = v && v.match(/(\d+)\s*[x×,]\s*(\d+)/i); if (m) patch({ w: Math.min(1200, Math.max(40, +m[1])), h: Math.min(1200, Math.max(30, +m[2])) }); } },
+    { label: 'Slett element', danger: true, fn: async () => { const { error } = await sb.from('oppg_elementer').delete().eq('id', id); if (!fail(error)) { elements = elements.filter(x => x.id !== id); renderGuests(); } } }
+  ]);
 }
 function seatPicker(tid) {
   const t = tables.find(x => x.id === tid); if (!t) return;
