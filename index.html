@@ -122,6 +122,11 @@ body.dragging #board{scroll-snap-type:none}
 .viewer{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:150;display:grid;place-items:center;padding:12px}
 .viewer img{max-width:100%;max-height:100%;object-fit:contain}
 .viewer button{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;font-size:20px;width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.2);color:#fff}
+/* Prioritet */
+.prios{display:flex;gap:8px;flex-wrap:wrap}
+.prios button{padding:6px 12px;border-radius:8px;border:2px solid var(--line);background:var(--surface);font-weight:600}
+.prios button.sel{background:var(--pc,var(--accent));border-color:var(--pc,var(--accent));color:#fff}
+.chip.prio{color:#fff;font-weight:600}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -154,6 +159,7 @@ body.dragging #board{scroll-snap-type:none}
     <div class="filters">
       <select id="fLabel" aria-label="Etikett"></select>
       <select id="fUser" aria-label="Ansvarlig"></select>
+      <select id="fPrio" aria-label="Prioritet"><option value="">Alle prioriteter</option><option value="3">Høy</option><option value="2">Middels</option><option value="1">Lav</option><option value="none">Uten prioritet</option></select>
       <select id="fDue" aria-label="Frist"><option value="">Alle frister</option><option value="over">Forfalt</option><option value="uke">Neste 7 dager</option><option value="ingen">Uten frist</option></select>
       <button id="fReset" class="btn" type="button">Nullstill</button>
     </div></div>
@@ -180,11 +186,12 @@ const LABELS = [
   {k:'rod',c:'#e5484d',n:'Haster'},{k:'oransje',c:'#f5871f',n:'Viktig'},{k:'gul',c:'#e5b400',n:'Venter'},
   {k:'gronn',c:'#12b76a',n:'Grei'},{k:'bla',c:'#2e90fa',n:'Info'},{k:'lilla',c:'#7a5af8',n:'Idé'}
 ];
+const PRIOS = [{k:1,n:'Lav',c:'#667085',i:'▽'},{k:2,n:'Middels',c:'#f5871f',i:'◆'},{k:3,n:'Høy',c:'#d92d20',i:'▲'}];
 const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d444a0','#667085'];
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let query = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -413,18 +420,19 @@ function showActivity() {
   const m = showModal(`<h2>Aktivitet</h2>${activity.length ? activity.map(a => `<div class="act ${a.type}">${esc(actText(a))}<small>${esc(fmtTid(a.opprettet))}</small></div>`).join('') : '<p class="empty">Ingen aktivitet ennå.</p>'}<div class="bar"><span></span><button class="btn primary" id="actOk">Lukk</button></div>`);
   $('#actOk', m).onclick = closeModal;
 }
-const filtering = () => !!(query || fLabel || fUser || fDue);
+const filtering = () => !!(query || fPrio || fLabel || fUser || fDue);
 function fillFilters() {
   $('#fLabel').innerHTML = '<option value="">Alle etiketter</option><option value="none">Uten etikett</option>' + LABELS.map(l => `<option value="${l.k}">${esc(l.n)}</option>`).join('');
   $('#fUser').innerHTML = '<option value="">Alle ansvarlige</option><option value="none">Ingen ansvarlig</option>' + users.map(u => `<option value="${u.id}">${esc(u.navn)}</option>`).join('');
-  $('#fLabel').value = fLabel; $('#fUser').value = fUser; $('#fDue').value = fDue;
+  $('#fPrio').value = fPrio; $('#fLabel').value = fLabel; $('#fUser').value = fUser; $('#fDue').value = fDue;
 }
-function resetFilters() { query = fLabel = fUser = fDue = ''; $('#searchIn').value = ''; fillFilters(); }
+function resetFilters() { query = fPrio = fLabel = fUser = fDue = ''; $('#searchIn').value = ''; fillFilters(); }
 function matches(c, isLast, today) {
   if (query) {
     const q = query.toLowerCase(), cl = Array.isArray(c.sjekkliste) ? c.sjekkliste.map(x => x.t).join(' ') : '';
     if (!(c.tittel + ' ' + (c.beskrivelse || '') + ' ' + cl).toLowerCase().includes(q)) return false;
   }
+  if (fPrio && (fPrio === 'none' ? c.prioritet : String(c.prioritet) !== fPrio)) return false;
   if (fLabel && (fLabel === 'none' ? c.etikett : c.etikett !== fLabel)) return false;
   if (fUser && (fUser === 'none' ? c.ansvarlig : c.ansvarlig !== fUser)) return false;
   if (fDue === 'ingen' && c.frist) return false;
@@ -470,17 +478,18 @@ function cardHtml(c, isLast, today) {
   const lbl = LABELS.find(l => l.k === c.etikett);
   const cl = Array.isArray(c.sjekkliste) ? c.sjekkliste : [];
   const done = cl.filter(x => x.d).length;
-  const u = userById(c.ansvarlig), nPhotos = files.filter(f => f.kort_id === c.id).length;
+  const pr = PRIOS.find(x => x.k === c.prioritet), u = userById(c.ansvarlig), nPhotos = files.filter(f => f.kort_id === c.id).length;
   let due = '';
   if (c.frist) {
     const over = !isLast && c.frist < today, soon = !over && !isLast && c.frist <= new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10);
     const d = new Date(c.frist + 'T00:00:00').toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' });
     due = `<span class="chip ${over ? 'over' : soon ? 'soon' : ''}" title="${over ? 'Forfalt' : soon ? 'Forfaller snart' : ''}">${over ? '⚠' : '📅'} ${esc(d)}</span>`;
   }
+  const prChip = pr ? `<span class="chip prio" style="background:${pr.c}" title="Prioritet: ${esc(pr.n)}">${pr.i} ${esc(pr.n)}</span>` : '';
   return `<div class="card" data-id="${c.id}">
     ${lbl ? `<span class="lbl" style="background:${lbl.c}" title="${esc(lbl.n)}"></span>` : ''}
     <div class="t">${esc(c.tittel)}</div>
-    <div class="meta">${due}${c.beskrivelse ? '<span title="Har beskrivelse">≡</span>' : ''}${cl.length ? `<span class="chip ${done === cl.length ? 'done' : ''}">☑ ${done}/${cl.length}</span>` : ''}${nPhotos ? `<span class="chip">📷 ${nPhotos}</span>` : ''}<span class="sp"></span>${avatar(u)}</div></div>`;
+    <div class="meta">${prChip}${due}${c.beskrivelse ? '<span title="Har beskrivelse">≡</span>' : ''}${cl.length ? `<span class="chip ${done === cl.length ? 'done' : ''}">☑ ${done}/${cl.length}</span>` : ''}${nPhotos ? `<span class="chip">📷 ${nPhotos}</span>` : ''}<span class="sp"></span>${avatar(u)}</div></div>`;
 }
 
 /* ---------- Dra og slipp ---------- */
@@ -534,6 +543,7 @@ function openCard(id) {
         <div class="field"><label>Frist</label><input type="date" id="fF" value="${cur.frist || ''}"></div>
       </div>
       <div class="field"><label>Kolonne</label><select id="fK">${cols.map(k => `<option value="${k.id}" ${k.id === cur.kolonne_id ? 'selected' : ''}>${esc(k.tittel)}</option>`).join('')}</select></div>
+      <div class="field"><label>Prioritet</label><div class="prios"><button type="button" class="${!cur.prioritet ? 'sel' : ''}" data-p="">Ingen</button>${PRIOS.map(x => `<button type="button" style="--pc:${x.c}" class="${cur.prioritet === x.k ? 'sel' : ''}" data-p="${x.k}">${x.i} ${esc(x.n)}</button>`).join('')}</div></div>
       <div class="field"><label>Etikett</label><div class="labels"><button class="none ${!cur.etikett ? 'sel' : ''}" data-l="">Ingen</button>${LABELS.map(l => `<button style="background:${l.c}" class="${cur.etikett === l.k ? 'sel' : ''}" data-l="${l.k}" title="${esc(l.n)}"></button>`).join('')}</div></div>
       <div class="field"><label>Beskrivelse</label><textarea id="fB" placeholder="Legg til detaljer …">${esc(cur.beskrivelse)}</textarea></div>
       <div class="field"><label>Sjekkliste</label>
@@ -553,6 +563,7 @@ function openCard(id) {
     $('#fF', m).onchange = e => save({ frist: e.target.value || null });
     $('#fA', m).onchange = e => save({ ansvarlig: e.target.value || null });
     $('#fK', m).onchange = e => save({ kolonne_id: e.target.value, posisjon: nextPos(e.target.value) });
+    m.querySelectorAll('.prios button').forEach(b => b.onclick = async () => { await save({ prioritet: b.dataset.p ? +b.dataset.p : null }); render_(); });
     m.querySelectorAll('.labels button').forEach(b => b.onclick = async () => { await save({ etikett: b.dataset.l || null }); render_(); });
     m.querySelectorAll('[data-ci]').forEach(b => b.onchange = async () => { const n = cl.map((x, i) => i === +b.dataset.ci ? { ...x, d: b.checked } : x); await save({ sjekkliste: n }); render_(); });
     m.querySelectorAll('[data-cd]').forEach(b => b.onclick = async () => { await save({ sjekkliste: cl.filter((_, i) => i !== +b.dataset.cd) }); render_(); });
@@ -706,13 +717,14 @@ $('#logoutBtn').onclick = () => { if (confirm('Logge ut?')) logout(); };
 $('#searchBtn').onclick = () => { const bar = $('#searchBar'); bar.classList.toggle('hidden'); if (!bar.classList.contains('hidden')) $('#searchIn').focus(); else { resetFilters(); render(); } };
 $('#searchIn').oninput = e => { query = e.target.value.trim(); render(); };
 $('#searchClear').onclick = () => { resetFilters(); $('#searchBar').classList.add('hidden'); render(); };
+$('#fPrio').onchange = e => { fPrio = e.target.value; render(); };
 $('#fLabel').onchange = e => { fLabel = e.target.value; render(); };
 $('#fUser').onchange = e => { fUser = e.target.value; render(); };
 $('#fDue').onchange = e => { fDue = e.target.value; render(); };
 $('#fReset').onclick = () => { resetFilters(); render(); };
 function exportBoard(fmt) {
   const b = boards.find(x => x.id === boardId), name = (b ? b.navn : 'tavle').replace(/[^\wæøåÆØÅ-]+/g, '_');
-  const rows = cards.map(c => ({ kolonne: ([...cols, ...archCols].find(k => k.id === c.kolonne_id) || {}).tittel || '', arkivert: c.arkivert ? 'ja' : '', tittel: c.tittel, beskrivelse: c.beskrivelse || '', ansvarlig: (userById(c.ansvarlig) || {}).navn || '', frist: c.frist || '', etikett: (LABELS.find(l => l.k === c.etikett) || {}).n || '', sjekkliste: (Array.isArray(c.sjekkliste) ? c.sjekkliste : []).map(x => (x.d ? '[x] ' : '[ ] ') + x.t).join(' | ') }));
+  const rows = cards.map(c => ({ kolonne: ([...cols, ...archCols].find(k => k.id === c.kolonne_id) || {}).tittel || '', arkivert: c.arkivert ? 'ja' : '', tittel: c.tittel, beskrivelse: c.beskrivelse || '', ansvarlig: (userById(c.ansvarlig) || {}).navn || '', frist: c.frist || '', etikett: (LABELS.find(l => l.k === c.etikett) || {}).n || '', prioritet: (PRIOS.find(x => x.k === c.prioritet) || {}).n || '', sjekkliste: (Array.isArray(c.sjekkliste) ? c.sjekkliste : []).map(x => (x.d ? '[x] ' : '[ ] ') + x.t).join(' | ') }));
   let text, type;
   if (fmt === 'json') { text = JSON.stringify({ tavle: b && b.navn, eksportert: new Date().toISOString(), kolonner: cols, kort: cards, aktivitet: activity }, null, 2); type = 'application/json'; }
   else { const q = v => '"' + String(v).replace(/"/g, '""') + '"', h = Object.keys(rows[0] || { kolonne: 1, tittel: 1, beskrivelse: 1, ansvarlig: 1, frist: 1, etikett: 1, sjekkliste: 1 }); text = '\ufeff' + [h.join(';'), ...rows.map(r => h.map(k => q(r[k])).join(';'))].join('\r\n'); type = 'text/csv'; }
