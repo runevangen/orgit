@@ -273,6 +273,22 @@ body.dragging #board{scroll-snap-type:none}
 .modal:has(.bar){padding-bottom:0}
 .modal .bar{position:sticky;bottom:0;z-index:2;margin:14px -16px 0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line)}
 .sheet button.opt{min-height:48px}
+/* Guide (overlay med pil) */
+#tour{position:fixed;inset:0;z-index:500}
+#tdim{position:absolute;inset:0;background:rgba(8,12,24,.62)}
+#tspot{position:absolute;border-radius:14px;pointer-events:none;box-shadow:0 0 0 9999px rgba(8,12,24,.62),0 0 0 3px var(--accent);animation:tpulse 1.6s ease-in-out infinite;transition:left .2s,top .2s,width .2s,height .2s}
+@keyframes tpulse{0%,100%{box-shadow:0 0 0 9999px rgba(8,12,24,.62),0 0 0 3px var(--accent)}50%{box-shadow:0 0 0 9999px rgba(8,12,24,.62),0 0 0 8px rgba(79,124,255,.5)}}
+#ttip{position:absolute;background:var(--surface);color:var(--text);border-radius:14px;padding:14px 14px 12px;box-shadow:0 10px 32px rgba(0,0,0,.35);max-height:calc(100vh - 24px);overflow:auto}
+#ttip h4{margin:0 0 4px;font-size:16px}
+#ttip p{margin:0 0 12px;font-size:14px;line-height:1.45;color:var(--text)}
+#ttip .tf{display:flex;align-items:center;gap:8px}
+#ttip .tf .cnt{flex:1;color:var(--muted);font-size:12px}
+#ttip .tf .btn{min-height:42px;padding:6px 14px}
+#ttip .tskip{border:0;background:transparent;color:var(--muted);padding:6px 4px;min-height:42px;font-size:13px}
+#tarrow{position:absolute;width:16px;height:16px;background:var(--surface);transform:rotate(45deg);border-radius:3px}
+.ghint{background:var(--col);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px}
+.ghint span{flex:1;min-width:180px}
+.ghint .btn{padding:6px 12px;min-height:40px}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -934,7 +950,7 @@ function renderGuests() {
   const gsum = groups.length ? `<div class="gsum">${groups.map(x => `<span class="chip" style="background:${esc(x.farge)}">${esc(x.navn)} ${guests.filter(g => g.gruppe_id === x.id).reduce((n, g) => n + g.antall, 0)}</span>`).join('')}</div>` : '';
   let body;
   if (gTab === 'liste') {
-    body = `<div class="gliste">${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
+    body = `<div class="gliste">${store.get('oppg_guide_g') ? '' : '<div class="ghint"><span>👋 Ny her? Ta en rask guide om gjester og bord.</span><button class="btn primary" id="gHintGo" type="button">Start guide</button><button class="btn" id="gHintNo" type="button">Ikke nå</button></div>'}${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
       ${groups.length ? `<select id="gGrpNew" aria-label="Gruppe"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gNewGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>` : ''}</form>
       <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select>
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select></div>
@@ -953,16 +969,18 @@ function renderGuests() {
       <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
   }
-  el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
+  el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gHelp" title="Guide" aria-label="Guide">❓</button><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
     <div class="gtabs"><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bordplassering</button></div><div class="gbody">${body}</div>`;
   $('#gBack', el).onclick = closeGuests;
   $('#gCsv', el).onclick = exportGuests;
+  $('#gHelp', el).onclick = guideMenu;
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
   if (gTab === 'liste') {
     $('#gAddForm', el).onsubmit = async e => { e.preventDefault(); gNewGrp = ($('#gGrpNew', el) || {}).value || ''; await addGuest($('#gNavn', el).value, +$('#gAntall', el).value || 1, gNewGrp); setTimeout(() => $('#gNavn')?.focus(), 0); };
     $('#gQ', el).oninput = e => { gQuery = e.target.value.trim(); $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
     $('#gGrpF', el).onchange = e => { gGrp = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
     $('#gManage', el).onclick = manageGroups;
+    if ($('#gHintGo', el)) { $('#gHintGo', el).onclick = () => { store.set('oppg_guide_g', '1'); startTour(TOUR_GUESTS); }; $('#gHintNo', el).onclick = () => { store.set('oppg_guide_g', '1'); renderGuests(); }; }
     $('#gLinks', el).onclick = showRsvpLinks;
     $('#gInv', el).onclick = editInvite;
     $('#gFil', el).onchange = e => { gFilter = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
@@ -1154,6 +1172,96 @@ function editInvite() {
     if (error) { $('#ivE', m).textContent = error.message; return; }
     Object.assign(b, patch); closeModal(); toast('Invitasjonen er lagret');
   };
+}
+/* ---------- Guide ---------- */
+let tour = null;
+const TOUR_BOARD = [
+  { sel: '#boardBtn', title: 'Tavler', text: 'Trykk her for å bytte mellom tavler, lage en ny tavle eller gi den nytt navn.', before: () => closeGuests() },
+  { sel: '#searchBtn', title: 'Søk og filter', text: 'Finn kort på tekst. Du kan også filtrere på etikett, ansvarlig, prioritet og frist.' },
+  { sel: '#mineBtn', title: 'Mine', text: 'Vis bare kortene du selv er ansvarlig for.' },
+  { sel: '#guestBtn', title: 'Gjester og bord', text: 'Her planlegger du gjesteliste, invitasjon og bordplassering. Det er egne guider for dem.' },
+  { sel: '#meBtn', title: 'Din meny', text: 'Arkiv, aktivitet, eksport, tema og logg ut ligger her.' },
+  { sel: '[data-colmenu]', title: 'Kolonnemeny', text: 'Gi kolonnen farge, sett en grense for antall kort, sorter etter prioritet, flytt eller arkiver den.' },
+  { sel: '[data-addopen]', title: 'Legg til kort', text: 'Trykk, skriv en tittel og trykk Legg til.' },
+  { sel: '.card', title: 'Kortene', text: 'Trykk på et kort for ansvarlig, frist, etikett, prioritet, sjekkliste, bilder og kommentarer. Hold inne og dra for å flytte det mellom kolonner.' },
+  { sel: '#dots .dot', title: 'Kolonneprikker', text: 'På mobil ser du én kolonne om gangen. Prikkene viser hvor du er, og du kan trykke på dem for å hoppe.' }
+];
+const toGuests = () => { openGuests(); gTab = 'liste'; renderGuests(); };
+const toTables = v => () => { openGuests(); gTab = 'bord'; gView = v || 'plan'; renderGuests(); };
+const TOUR_GUESTS = [
+  { sel: '.gtabs', title: 'To faner', text: 'Gjesteliste er for navn og svar. Bordplassering er for å sette gjestene ved bord.', before: toGuests },
+  { sel: '.gsum', title: 'Oversikt', text: 'Antall personer som kommer, venter, kanskje og ikke kommer, samt antall per gruppe.' },
+  { sel: '#gAddForm', title: 'Legg til gjester', text: 'Skriv navn (en person eller en gruppe), antall personer og eventuelt gruppe. Trykk Legg til.' },
+  { sel: '#gManage', title: 'Grupper', text: 'Lag grupper som Familie, Bodø og Trondheim-gjengen med egen farge. Brukes til filter og når du plasserer folk ved bord.' },
+  { sel: '#gInv', title: 'Invitasjon', text: 'Skriv dato, sted, svarfrist og en hilsen som gjestene ser.' },
+  { sel: '#gLinks', title: 'Svarlenker', text: 'Hver gjest får en egen lenke og kan svare selv. Svaret dukker opp her med en gang.' },
+  { sel: '.gbtn.yes', title: 'Kryss av', text: '✔ betyr kommer, ✖ betyr kommer ikke. Trykk igjen for å angre. «Kanskje» velger du inni gjesten.', missing: 'Når du har lagt til gjester, vises ✔ og ✖ på hver gjest. Trykk for å krysse av om de kommer.' },
+  { sel: '.gtb', title: 'Velg bord', text: 'Sett gjesten ved et bord direkte herfra.', missing: 'Hver gjest får en knapp «Velg bord» der du kan sette dem ved et bord.' },
+  { sel: '.gname', title: 'Alt om gjesten', text: 'Trykk på navnet for bilde, antall, gruppe, relasjoner (skal eller bør ikke sitte sammen) og notater.', missing: 'Trykk på en gjest for bilde, antall, gruppe, relasjoner og notater.' },
+  { sel: '.gfil', title: 'Søk og filter', text: 'Søk på navn og filtrer på svar og gruppe.' }
+];
+const TOUR_TABLES = [
+  { sel: '.gunp', title: 'Ikke plassert', text: 'Gjester som ennå ikke har bord. Dra en gjest herfra til et bord, eller trykk på en ledig plass.', before: toTables('plan') },
+  { sel: '#gNewTable', title: 'Nytt bord', text: 'Velg bordtype og hvor mange bord du vil legge til.' },
+  { sel: '#gTypes', title: 'Bordtyper', text: 'Lag typer som 4-, 6- og 8-personsbord. Endrer du en type, oppdateres alle bord av den typen.' },
+  { sel: '.gview', title: 'Tre visninger', text: 'Bord viser bord med gjestene rundt. Lokale lar deg flytte bordene fritt. Dra og slipp er en enkel liste.' },
+  { sel: '[data-seat-e]', title: 'Ledig plass', text: 'Trykk på et «+» for å sette en gjest på den plassen.', missing: 'Når du har laget et bord, vises ledige plasser som «+». Trykk på en for å sette en gjest der.' },
+  { sel: '.gtable', title: 'Dra til bord', text: 'Dra en gjest rett på et bord. På mobil holder du fingeren litt nede først. Bordet lyser blått, og blir rødt når det er fullt.', missing: 'Dra en gjest rett på et bord. På mobil holder du fingeren litt nede først.' },
+  { sel: '.ftool', title: 'Lokale', text: 'Dra i midten av et bord for å flytte det. «+ Element» legger til scene, bar, inngang og mer. Zoom med − og +.', before: toTables('floor') },
+  { sel: '.gsum', title: 'Varsler', text: 'Har du satt relasjoner (skal eller bør ikke sitte sammen), får du et varsel her hvis noen sitter feil.', before: toTables('plan') },
+  { sel: '#gImg', title: 'Bilde av bordplassering', text: 'Lag et bilde du kan laste ned, dele eller skrive ut, gjerne med lokaletegningen.' },
+  { sel: '#gCards', title: 'Navnekort og bordkort', text: 'Skriv ut navnekort og bordkort på A4, som telt-kort eller flate.' }
+];
+function endTour() { if (!tour) return; window.removeEventListener('resize', tour.re); window.removeEventListener('keydown', tour.key, true); document.removeEventListener('scroll', tour.re, true); $('#tour') && $('#tour').remove(); tour = null; }
+function startTour(steps) {
+  endTour(); closeModal();
+  const root = document.createElement('div'); root.id = 'tour'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Guide');
+  root.innerHTML = '<div id="tdim"></div><div id="tspot"></div><div id="tarrow"></div><div id="ttip"><h4 id="tt"></h4><p id="tx"></p><div class="tf"><button class="tskip" id="tSkip">Hopp over</button><span class="cnt" id="tCnt"></span><button class="btn" id="tPrev">Tilbake</button><button class="btn primary" id="tNext">Neste</button></div></div>';
+  document.body.appendChild(root);
+  tour = { steps, i: 0, target: null };
+  const place = () => {
+    if (!tour) return; const spot = $('#tspot'), tip = $('#ttip'), arrow = $('#tarrow'), vw = innerWidth, vh = innerHeight, t = tour.target;
+    const tw = Math.min(340, vw - 24); tip.style.width = tw + 'px';
+    const th = tip.offsetHeight;
+    if (!t) { spot.style.display = 'none'; $('#tdim').style.display = 'block'; arrow.style.display = 'none'; tip.style.left = Math.round((vw - tw) / 2) + 'px'; tip.style.top = Math.max(12, Math.round((vh - th) / 2)) + 'px'; return; }
+    $('#tdim').style.display = 'none'; spot.style.display = 'block'; arrow.style.display = 'block';
+    const r = t.getBoundingClientRect(), pad = 6;
+    spot.style.left = (r.left - pad) + 'px'; spot.style.top = (r.top - pad) + 'px'; spot.style.width = (r.width + 2 * pad) + 'px'; spot.style.height = (r.height + 2 * pad) + 'px';
+    const below = vh - r.bottom - pad, above = r.top - pad, bottom = below >= th + 26 || below >= above;
+    let top = bottom ? r.bottom + pad + 14 : r.top - pad - 14 - th;
+    top = Math.min(Math.max(12, top), vh - th - 12);
+    const left = Math.min(Math.max(12, r.left + r.width / 2 - tw / 2), vw - tw - 12);
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+    const ax = Math.min(Math.max(16, r.left + r.width / 2 - left - 8), tw - 32);
+    arrow.style.left = (left + ax) + 'px'; arrow.style.top = (bottom ? top - 7 : top + th - 9) + 'px'; arrow.style.bottom = '';
+    const overlap = bottom ? top < r.bottom : top + th > r.top; arrow.style.display = overlap ? 'none' : 'block';
+  };
+  const show = i => {
+    const st = steps[i]; tour.i = i;
+    if (st.before) st.before();
+    let t = st.sel ? document.querySelector(st.sel) : null;
+    if (t && (!t.getClientRects().length)) t = null;
+    if (t) { try { t.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch {} }
+    tour.target = t;
+    $('#tt').textContent = st.title; $('#tx').textContent = t || !st.missing ? st.text : st.missing;
+    $('#tCnt').textContent = `${i + 1} av ${steps.length}`;
+    $('#tPrev').style.visibility = i === 0 ? 'hidden' : 'visible'; $('#tNext').textContent = i === steps.length - 1 ? 'Ferdig' : 'Neste';
+    requestAnimationFrame(() => requestAnimationFrame(place));
+  };
+  tour.re = () => requestAnimationFrame(place);
+  tour.key = e => { if (e.key === 'Escape') { e.stopPropagation(); endTour(); } else if (e.key === 'ArrowRight') { e.stopPropagation(); $('#tNext').click(); } else if (e.key === 'ArrowLeft') { e.stopPropagation(); $('#tPrev').click(); } };
+  window.addEventListener('resize', tour.re); document.addEventListener('scroll', tour.re, true); window.addEventListener('keydown', tour.key, true);
+  $('#tSkip').onclick = endTour;
+  $('#tPrev').onclick = () => { if (tour.i > 0) show(tour.i - 1); };
+  $('#tNext').onclick = () => { if (tour.i < steps.length - 1) show(tour.i + 1); else endTour(); };
+  show(0);
+}
+function guideMenu() {
+  sheet('Guide: slik bruker du appen', [
+    { label: '📋 Tavlen og oppgavene', fn: () => startTour(TOUR_BOARD) },
+    { label: '👥 Gjester og invitasjon', fn: () => startTour(TOUR_GUESTS) },
+    { label: '🪑 Bord og plassering', fn: () => startTour(TOUR_TABLES) }
+  ]);
 }
 const rsvpBase = () => location.origin + location.pathname + '?svar=';
 async function copyText(t) {
@@ -1700,6 +1808,7 @@ function boardMenu() {
 }
 function meMenu() {
   sheet(me.navn, [
+    { label: '❓ Guide og hjelp', fn: guideMenu },
     { label: 'Arkiv', fn: showArchive },
     { label: 'Aktivitet', fn: showActivity },
     { label: 'Eksporter tavle (JSON)', fn: () => exportBoard('json') },
