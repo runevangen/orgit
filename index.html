@@ -276,23 +276,6 @@ function showCreateUser(first) {
     me = data[0]; saveMe($('#nRemember', box).checked); box.classList.add('hidden'); start();
   };
 }
-function addPerson() {
-  const m = showModal(`<h2>Legg til person</h2><form id="apForm">
-    <div class="field"><label>Navn</label><input id="apNavn" required maxlength="30"></div>
-    <div class="field"><label>PIN til den nye (minst 4 tegn)</label><input id="apPin" type="password" inputmode="numeric" minlength="4" required></div>
-    <div class="field"><label>Din egen PIN (for å bekrefte)</label><input id="apMy" type="password" inputmode="numeric" required></div>
-    <div class="field"><label>Farge</label><div class="colors">${COLORS.map((c, i) => `<button type="button" data-c="${c}" style="background:${c}" class="${i === 1 ? 'sel' : ''}"></button>`).join('')}</div></div>
-    <div class="err" id="apErr"></div><div class="bar"><button type="button" class="btn" id="apCancel">Avbryt</button><button class="btn primary">Legg til</button></div></form>`);
-  let farge = COLORS[1];
-  m.querySelectorAll('.colors button').forEach(b => b.onclick = () => { farge = b.dataset.c; m.querySelectorAll('.colors button').forEach(x => x.classList.toggle('sel', x === b)); });
-  $('#apCancel', m).onclick = closeModal;
-  $('#apForm', m).onsubmit = async e => {
-    e.preventDefault();
-    const { error } = await sb.rpc('oppg_ny_bruker', { p_navn: $('#apNavn', m).value, p_pin: $('#apPin', m).value, p_farge: farge, p_admin_navn: me.navn, p_admin_pin: $('#apMy', m).value });
-    if (error) { $('#apErr', m).textContent = error.message.includes('duplicate') ? 'Navnet er tatt' : (error.message.includes('Ikke tillatt') ? 'Feil PIN' : error.message); return; }
-    closeModal(); await loadUsers(); render(); toast('Person lagt til');
-  };
-}
 function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; query = ''; activity = []; files = []; $('#searchBar').classList.add('hidden'); $('#searchIn').value = ''; if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
 
 /* ---------- Data ---------- */
@@ -628,7 +611,6 @@ function meMenu() {
     { label: 'Aktivitet', fn: showActivity },
     { label: 'Eksporter tavle (JSON)', fn: () => exportBoard('json') },
     { label: 'Eksporter tavle (CSV)', fn: () => exportBoard('csv') },
-    { label: 'Legg til person', fn: addPerson },
     { label: 'Tema: ' + THEME_NAME[store.get('oppg_tema') || 'auto'] + ' (trykk for å bytte)', fn: cycleTheme },
     { label: 'Logg ut', danger: true, fn: logout }
   ]);
