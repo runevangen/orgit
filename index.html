@@ -430,7 +430,7 @@ async function showLogin() {
         e.preventDefault();
         const u = userById(sel);
         const { data, error } = await sb.rpc('oppg_logg_inn', { p_navn: u.navn, p_pin: $('#pin', box).value });
-        if (error || !data || !data.length) { $('#err', box).textContent = 'Feil PIN-kode'; $('#pin', box).select(); return; }
+        if (error || !data || !data.length) { $('#err', box).textContent = error && /For mange/.test(error.message) ? error.message : 'Feil PIN-kode'; $('#pin', box).select(); return; }
         me = data[0]; saveMe($('#remember', box).checked); box.classList.add('hidden'); start();
       };
     }
@@ -441,9 +441,9 @@ function showCreateUser(first) {
   const box = $('#login'); box.classList.remove('hidden');
   let farge = COLORS[0];
   box.innerHTML = `<div class="lbox"><h1>${first ? 'Velkommen!' : 'Ny person'}</h1>
-    <p>${first ? 'Lag den første brukeren. Flere kan legges til etterpå.' : 'Legg til en person som skal bruke tavlen.'}</p>
-    <form id="nyForm"><div class="field"><label>Navn</label><input id="nNavn" required maxlength="30"></div>
-    <div class="field"><label>PIN-kode (minst 4 tegn)</label><input id="nPin" type="password" inputmode="numeric" minlength="4" required></div>
+    <p>${first ? 'Lag den første brukeren. Flere kan legges til etterpå.' : 'Du trenger invitasjonskoden fra en som allerede bruker appen.'}</p>
+    <form id="nyForm">${first ? '' : '<div class="field"><label>Invitasjonskode</label><input id="nKode" required maxlength="30" autocapitalize="characters" autocomplete="off"></div>'}<div class="field"><label>Navn</label><input id="nNavn" required maxlength="30"></div>
+    <div class="field"><label>PIN-kode (minst 6 tegn)</label><input id="nPin" type="password" inputmode="numeric" minlength="6" required></div>
     <div class="field"><label>Farge</label><div class="colors">${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === farge ? 'sel' : ''}"></button>`).join('')}</div></div>
     <label class="remember"><input type="checkbox" id="nRemember" ${store.get('oppg_husk') !== '0' ? 'checked' : ''}> Husk meg på denne enheten</label>
     <div class="err" id="err"></div><button class="btn primary" style="width:100%">${first ? 'Opprett og start' : 'Opprett bruker'}</button>
@@ -452,8 +452,9 @@ function showCreateUser(first) {
   box.querySelectorAll('.colors button').forEach(b => b.onclick = () => { farge = b.dataset.c; box.querySelectorAll('.colors button').forEach(x => x.classList.toggle('sel', x === b)); });
   $('#nyForm', box).onsubmit = async e => {
     e.preventDefault();
-    const { data, error } = await sb.rpc('oppg_ny_bruker', { p_navn: $('#nNavn', box).value, p_pin: $('#nPin', box).value, p_farge: farge });
+    const { data, error } = await sb.rpc('oppg_ny_bruker2', { p_navn: $('#nNavn', box).value, p_pin: $('#nPin', box).value, p_farge: farge, p_kode: first ? null : $('#nKode', box).value });
     if (error) { $('#err', box).textContent = error.message.includes('duplicate') ? 'Navnet er tatt' : error.message; return; }
+    if (!data || !data.length) { $('#err', box).textContent = 'Feil invitasjonskode'; return; }
     me = data[0]; saveMe($('#nRemember', box).checked); box.classList.add('hidden'); start();
   };
 }
@@ -1265,6 +1266,35 @@ function startTour(steps) {
   $('#tNext').onclick = () => { if (tour.i < steps.length - 1) show(tour.i + 1); else endTour(); };
   show(0);
 }
+function showInviteCode() {
+  const m = showModal(`<h2>Invitasjonskode</h2><p style="color:var(--muted);margin:0 0 12px;font-size:14px">Nye brukere må skrive inn denne koden for å lage en bruker. Del den bare med folk du stoler på. Skriv inn PIN-koden din for å se den.</p>
+    <form id="icF"><input id="icPin" type="password" inputmode="numeric" placeholder="Din PIN" required autocomplete="current-password"><div class="err" id="icErr"></div>
+    <div class="bar"><button type="button" class="btn" id="icX">Lukk</button><button class="btn primary">Vis kode</button></div></form>`);
+  $('#icX', m).onclick = closeModal; $('#icPin', m).focus();
+  let pin = '';
+  const show = code => {
+    m.innerHTML = `<h2>Invitasjonskode</h2><div style="font-size:30px;font-weight:700;letter-spacing:.08em;text-align:center;margin:10px 0 14px;user-select:all">${esc(code)}</div>
+      <div class="photobtns" style="justify-content:center;margin-bottom:14px"><button class="btn" id="icCopy">Kopier</button></div>
+      <form id="icN" class="field"><label>Bytt kode (6–30 tegn)</label><div style="display:flex;gap:8px"><input id="icNew" maxlength="30" minlength="6" autocapitalize="characters" autocomplete="off" placeholder="Ny kode"><button class="btn">Bytt</button></div><div class="err" id="icErr2"></div></form>
+      <div class="bar"><span></span><button class="btn primary" id="icOk">Ferdig</button></div>`;
+    $('#icOk', m).onclick = closeModal;
+    $('#icCopy', m).onclick = async () => toast(await copyText(code) ? 'Koden er kopiert' : 'Kunne ikke kopiere');
+    $('#icN', m).onsubmit = async e => {
+      e.preventDefault();
+      const { data, error } = await sb.rpc('oppg_invitasjonskode', { p_navn: me.navn, p_pin: pin, p_ny: $('#icNew', m).value });
+      if (error) { $('#icErr2', m).textContent = error.message; return; }
+      if (!data) { $('#icErr2', m).textContent = 'Feil PIN'; return; }
+      toast('Koden er byttet'); show(data);
+    };
+  };
+  $('#icF', m).onsubmit = async e => {
+    e.preventDefault(); pin = $('#icPin', m).value;
+    const { data, error } = await sb.rpc('oppg_invitasjonskode', { p_navn: me.navn, p_pin: pin });
+    if (error) { $('#icErr', m).textContent = error.message; return; }
+    if (!data) { $('#icErr', m).textContent = 'Feil PIN'; return; }
+    show(data);
+  };
+}
 function guideMenu() {
   sheet('Guide: slik bruker du appen', [
     { label: '📋 Tavlen og oppgavene', fn: () => startTour(TOUR_BOARD) },
@@ -1288,6 +1318,7 @@ function showRsvpLinks() {
     e.preventDefault();
     const { data, error } = await sb.rpc('oppg_rsvp_lenker', { p_navn: me.navn, p_pin: $('#rlPin', m).value, p_tavle: boardId });
     if (error) { $('#rlErr', m).textContent = error.message.includes('Ikke tillatt') ? 'Feil PIN' : error.message; return; }
+    if (!data || !data.length) { $('#rlErr', m).textContent = 'Feil PIN'; return; }
     const tok = Object.fromEntries((data || []).map(r => [r.gjest_id, r.token]));
     const rows = guests.slice().sort((a, b) => a.navn.localeCompare(b.navn, 'nb')).filter(g => tok[g.id]);
     const url = g => rsvpBase() + tok[g.id];
@@ -1818,6 +1849,7 @@ function boardMenu() {
 }
 function meMenu() {
   sheet(me.navn, [
+    { label: '🔑 Invitasjonskode for nye brukere', fn: showInviteCode },
     { label: '❓ Guide og hjelp', fn: guideMenu },
     { label: 'Arkiv', fn: showArchive },
     { label: 'Aktivitet', fn: showActivity },
