@@ -183,6 +183,10 @@ body.dragging #board{scroll-snap-type:none}
 .gplanwrap{overflow-x:auto}
 .gview{display:flex;gap:8px;margin:0 0 8px}
 .gview .btn{flex:1;padding:6px 10px}
+.gwarn{background:#fef3f2;border:1px solid #fda29b;color:#b42318;border-radius:10px;padding:8px 10px;margin:0 0 8px;font-size:13px}
+.gwarn button{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;padding:4px 0;font:inherit;cursor:pointer}
+:root[data-theme=dark] .gwarn{background:#3b1c1a;border-color:#7a2e29;color:#fda29b}
+@media (prefers-color-scheme:dark){:root[data-theme=auto] .gwarn{background:#3b1c1a;border-color:#7a2e29;color:#fda29b}}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -249,7 +253,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -351,7 +355,7 @@ function showCreateUser(first) {
     me = data[0]; saveMe($('#nRemember', box).checked); box.classList.add('hidden'); start();
   };
 }
-function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; groups = []; tableTypes = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
+function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; groups = []; tableTypes = []; relations = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
 
 /* ---------- Data ---------- */
 async function loadUsers() { const { data, error } = await sb.rpc('oppg_brukere_liste'); if (!fail(error)) users = data || []; }
@@ -372,16 +376,17 @@ async function createBoard(navn, silent) {
 }
 async function loadBoard() {
   if (!boardId) return;
-  const [c, k, g, t, gr, ty] = await Promise.all([
+  const [c, k, g, t, gr, ty, rl] = await Promise.all([
     sb.from('oppg_kolonner').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_kort').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_gjester').select('*').eq('tavle_id', boardId).order('opprettet'),
     sb.from('oppg_bord').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_grupper').select('*').eq('tavle_id', boardId).order('opprettet'),
-    sb.from('oppg_bordtyper').select('*').eq('tavle_id', boardId).order('plasser').order('opprettet')
+    sb.from('oppg_bordtyper').select('*').eq('tavle_id', boardId).order('plasser').order('opprettet'),
+    sb.from('oppg_relasjoner').select('*').eq('tavle_id', boardId)
   ]);
   if (fail(c.error) || fail(k.error)) return;
-  if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || [];
+  if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || [];
   const allCols = c.data || []; cols = allCols.filter(x => !x.arkivert); archCols = allCols.filter(x => x.arkivert); cards = k.data || [];
   await loadActivity(); await loadFiles();
   render();
@@ -399,7 +404,7 @@ function subscribe() {
   try {
     if (channel) sb.removeChannel(channel);
     channel = sb.channel('oppg-live');
-    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord', 'oppg_grupper', 'oppg_bordtyper'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
+    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord', 'oppg_grupper', 'oppg_bordtyper', 'oppg_relasjoner'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
     channel.subscribe();
   } catch (e) { console.warn('Sanntid ikke tilgjengelig her – oppdater siden for å se andres endringer', e); }
 }
@@ -725,6 +730,20 @@ async function removeGuestPhoto(id) {
   if (fail(error, 'kunne ikke fjerne bildet')) return;
   g.bilde_sti = null; await sb.storage.from(BUCKET).remove([old]); renderGuests(); editGuest(id);
 }
+const RELT = { sammen: { n: 'Skal sitte sammen', i: '💞' }, ikke_sammen: { n: 'Bør ikke sitte sammen', i: '⛔' } };
+const relsOf = id => relations.filter(r => r.a_id === id || r.b_id === id);
+const relOther = (r, id) => guests.find(g => g.id === (r.a_id === id ? r.b_id : r.a_id));
+const tName = id => (tables.find(t => t.id === id) || {}).navn || '';
+function relIssues() {
+  const out = [];
+  relations.forEach(r => {
+    const a = guests.find(g => g.id === r.a_id), b = guests.find(g => g.id === r.b_id);
+    if (!a || !b || a.status === 'kommer_ikke' || b.status === 'kommer_ikke') return;
+    if (r.type === 'ikke_sammen' && a.bord_id && a.bord_id === b.bord_id) out.push({ a, b, msg: `${a.navn} og ${b.navn} bør ikke sitte sammen (${tName(a.bord_id)})` });
+    if (r.type === 'sammen' && (a.bord_id || b.bord_id) && a.bord_id !== b.bord_id) out.push({ a, b, msg: `${a.navn} og ${b.navn} skal sitte sammen (${tName(a.bord_id) || 'ikke plassert'} / ${tName(b.bord_id) || 'ikke plassert'})` });
+  });
+  return out;
+}
 const grp = id => groups.find(x => x.id === id);
 const gTag = g => { const x = grp(g.gruppe_id); return x ? `<span class="gtag" style="background:${esc(x.farge)}">${esc(x.navn)}</span>` : ''; };
 const seatsUsed = tid => guests.filter(g => g.bord_id === tid && g.status !== 'kommer_ikke').reduce((n, g) => n + g.antall, 0);
@@ -734,7 +753,7 @@ function closeGuests() { guestsOpen = false; const el = $('#guests'); el.classLi
 function gGuestHtml(g) {
   const st = GST[g.status];
   return `<div class="grw" data-g="${g.id}" title="${st.n}">${gAv(g)}
-    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}</div>
+    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}${relsOf(g.id).length ? `<small>${relsOf(g.id).map(r => RELT[r.type].i).join('')}</small>` : ''}${gConf.has(g.id) ? '<small title="Relasjonsbrudd">⚠</small>' : ''}</div>
     <button class="gbtn yes ${g.status === 'kommer' ? 'sel' : ''}" data-gs="kommer" data-id="${g.id}" aria-label="Kommer">✔</button>
     <button class="gbtn no ${g.status === 'kommer_ikke' ? 'sel' : ''}" data-gs="kommer_ikke" data-id="${g.id}" aria-label="Kommer ikke">✖</button></div>`;
 }
@@ -749,6 +768,7 @@ function bindGuestRows(root) {
 }
 function renderGuests() {
   const el = $('#guests'); if (!guestsOpen) return;
+  const issues = relIssues(); gConf = new Set(issues.flatMap(i => [i.a.id, i.b.id]));
   const b = boards.find(x => x.id === boardId);
   const total = guests.reduce((n, g) => n + g.antall, 0);
   const sum = `<div class="gsum">${Object.entries(GST).map(([k, v]) => `<span class="chip" style="background:${v.c}">${v.n} ${sumBy(k)}</span>`).join('')}<span class="chip" style="background:var(--muted);color:#fff">Totalt ${total}</span></div>`;
@@ -764,9 +784,10 @@ function renderGuests() {
   } else {
     const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
-    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}</div></div>`;
+    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}</div></div>`;
     const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Plantegning</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
-    body = `${sum}${viewToggle}<div class="gunp"><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
+    const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
+    body = `${sum}${warn}${viewToggle}<div class="gunp"><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
       <div class="gtables">${gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div>
       <div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
@@ -790,6 +811,7 @@ function renderGuests() {
     $('#gImg', el).onclick = planExport;
     el.querySelectorAll('[data-tmenu]').forEach(x => x.onclick = () => tableMenu(x.dataset.tmenu));
     el.querySelectorAll('.gchip').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) editGuest(x.dataset.id); });
+    el.querySelectorAll('[data-wi]').forEach(x => x.onclick = () => editGuest(issues[+x.dataset.wi].a.id));
     el.querySelectorAll('[data-gview]').forEach(x => x.onclick = () => { gView = x.dataset.gview; renderGuests(); });
     el.querySelectorAll('[data-seat-g]').forEach(x => x.onclick = () => editGuest(x.dataset.seatG));
     el.querySelectorAll('[data-seat-e]').forEach(x => x.onclick = () => seatPicker(x.dataset.seatE));
@@ -824,6 +846,8 @@ function editGuest(id) {
     <div class="field"><label>Svar</label><select id="eS">${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${g.status === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select></div></div>
     <div class="field"><label>Gruppe</label><select id="eG"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${g.gruppe_id === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}<option value="__new">+ Ny gruppe …</option></select></div>
     <div class="field"><label>Bord</label><select id="eB"><option value="">Ikke plassert</option>${tables.map(t => `<option value="${t.id}" ${g.bord_id === t.id ? 'selected' : ''}>${esc(t.navn)} (${seatsUsed(t.id)}/${t.plasser})</option>`).join('')}</select></div>
+    <div class="field"><label>Relasjoner</label>${relsOf(g.id).map(r => { const o = relOther(r, g.id); return `<div class="check"><span>${RELT[r.type].i} ${esc(o ? o.navn : '?')} <small style="color:var(--muted)">${RELT[r.type].n.toLowerCase()}</small></span><button type="button" data-rd="${r.id}" aria-label="Fjern">✕</button></div>`; }).join('')}
+      <button type="button" class="btn" id="eRel" style="margin-top:6px">+ Ny relasjon</button></div>
     <div class="field"><label>Notat (allergier, kontakt, …)</label><textarea id="eT" maxlength="500">${esc(g.notat)}</textarea></div>
     <div class="bar"><button class="btn danger" id="eDel">Slett</button><button class="btn primary" id="eOk">Ferdig</button></div>`);
   $('#eCam', m).onclick = () => $('#eCamIn', m).click();
@@ -838,6 +862,11 @@ function editGuest(id) {
     if (e.target.value !== '__new') return saveGuest(id, { gruppe_id: e.target.value || null });
     const nx = await newGroup(); if (nx) saveGuest(id, { gruppe_id: nx.id }); else e.target.value = g.gruppe_id || '';
   };
+  $('#eRel', m).onclick = () => addRelation(id);
+  m.querySelectorAll('[data-rd]').forEach(b => b.onclick = async () => {
+    const { error } = await sb.from('oppg_relasjoner').delete().eq('id', b.dataset.rd); if (fail(error, 'kunne ikke fjerne relasjonen')) return;
+    relations = relations.filter(r => r.id !== b.dataset.rd); renderGuests(); editGuest(id);
+  });
   $('#eB', m).onchange = e => saveGuest(id, { bord_id: e.target.value || null });
   $('#eT', m).onchange = e => saveGuest(id, { notat: e.target.value });
   $('#eOk', m).onclick = () => { const v = $('#eN', m).value.trim(); if (v && v !== g.navn) saveGuest(id, { navn: v }); const n = $('#eT', m).value; if (n !== g.notat) saveGuest(id, { notat: n }); closeModal(); };
@@ -845,7 +874,7 @@ function editGuest(id) {
     if (!confirm(`Slette «${g.navn}»?`)) return;
     const { error } = await sb.from('oppg_gjester').delete().eq('id', id); if (fail(error, 'kunne ikke slette')) return;
     if (g.bilde_sti) sb.storage.from(BUCKET).remove([g.bilde_sti]);
-    guests = guests.filter(x => x.id !== id); closeModal(); renderGuests();
+    guests = guests.filter(x => x.id !== id); relations = relations.filter(r => r.a_id !== id && r.b_id !== id); closeModal(); renderGuests();
   };
 }
 function planTable(t) {
@@ -857,7 +886,7 @@ function planTable(t) {
     const sl = slots[k], cls = k >= t.plasser ? 'over' : '';
     if (!sl) return `<button class="gseat ${cls}" style="left:${x}px;top:${y}px" data-seat-e="${t.id}" aria-label="Ledig plass"><span class="gempt">+</span></button>`;
     const first = esc(sl.g.navn.split(' ')[0]), c = (grp(sl.g.gruppe_id) || {}).farge;
-    return `<button class="gseat ${cls}" style="left:${x}px;top:${y}px" data-seat-g="${sl.g.id}" title="${esc(sl.g.navn)}">${gAv(sl.g, 'sm' + (sl.i ? ' ghosty' : ''))}<span class="lbl" style="--gc:${c ? esc(c) : 'transparent'}">${first}${sl.i ? ' +' + sl.i : ''}</span></button>`;
+    return `<button class="gseat ${cls}" style="left:${x}px;top:${y}px" data-seat-g="${sl.g.id}" title="${esc(sl.g.navn)}">${gAv(sl.g, 'sm' + (sl.i ? ' ghosty' : ''))}<span class="lbl" style="--gc:${c ? esc(c) : 'transparent'}">${first}${sl.i ? ' +' + sl.i : ''}${!sl.i && gConf.has(sl.g.id) ? ' ⚠' : ''}</span></button>`;
   };
   const centre = `<b>${esc(t.navn)}</b>${used}/${t.plasser}`;
   let W, H, inner = '';
@@ -879,7 +908,21 @@ function seatPicker(tid) {
   const t = tables.find(x => x.id === tid); if (!t) return;
   const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => ((grp(a.gruppe_id) || { navn: '\uffff' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '\uffff' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb'));
   if (!unp.length) return toast('Ingen uplasserte gjester');
-  sheet(`Sett ved ${t.navn}`, unp.map(g => ({ label: `${g.navn}${g.antall > 1 ? ' (+' + (g.antall - 1) + ')' : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}`, fn: () => saveGuest(g.id, { bord_id: tid }) })));
+  const hint = g => { const r = relsOf(g.id).map(x => ({ x, o: relOther(x, g.id) })).filter(y => y.o && y.o.bord_id === tid && y.o.status !== 'kommer_ikke'); const no = r.filter(y => y.x.type === 'ikke_sammen').map(y => y.o.navn), yes = r.filter(y => y.x.type === 'sammen').map(y => y.o.navn); return (no.length ? ' ⛔ ' + no.join(', ') : '') + (yes.length ? ' 💞 ' + yes.join(', ') : ''); };
+  sheet(`Sett ved ${t.navn}`, unp.map(g => ({ label: `${g.navn}${g.antall > 1 ? ' (+' + (g.antall - 1) + ')' : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}${hint(g)}`, fn: () => saveGuest(g.id, { bord_id: tid }) })));
+}
+function addRelation(id) {
+  const g = guests.find(x => x.id === id); if (!g) return;
+  const taken = new Set(relsOf(id).map(r => r.a_id === id ? r.b_id : r.a_id));
+  const cand = guests.filter(x => x.id !== id && !taken.has(x.id)).sort((a, b) => a.navn.localeCompare(b.navn, 'nb'));
+  if (!cand.length) { toast(guests.length < 2 ? 'Legg til flere gjester først' : 'Alle gjester har allerede en relasjon til denne'); return editGuest(id); }
+  sheet(`Relasjon for ${g.navn}: velg gjest`, cand.map(o => ({ label: `${o.navn}${grp(o.gruppe_id) ? ' · ' + grp(o.gruppe_id).navn : ''}`, fn: () =>
+    sheet(`${g.navn} og ${o.navn}`, Object.entries(RELT).map(([k, v]) => ({ label: `${v.i} ${v.n}`, fn: async () => {
+      const [a, b] = id < o.id ? [id, o.id] : [o.id, id];
+      const { data, error } = await sb.from('oppg_relasjoner').insert({ tavle_id: boardId, a_id: a, b_id: b, type: k }).select().single();
+      if (fail(error, 'kunne ikke lagre relasjonen')) return editGuest(id);
+      relations.push(data); renderGuests(); editGuest(id);
+    } }))) })));
 }
 async function newGroup() {
   const navn = prompt('Navn på gruppen (f.eks. Familie, Bodø, Trondheim-gjengen):'); if (!navn || !navn.trim()) return null;
