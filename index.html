@@ -136,11 +136,14 @@ body.dragging #board{scroll-snap-type:none}
 .gbody{flex:1;overflow-y:auto;padding:0 12px 28px}
 .gsum{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}
 .gsum .chip{padding:3px 8px;font-size:12px;color:#fff;font-weight:600}
-.gadd{display:flex;gap:6px;margin:8px 0}
+.gadd{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.gadd #gNavn{flex:1 1 140px;min-width:0}
+.gadd #gGrpNew{flex:1 1 100%}
+.gtag{display:inline-block;color:#fff;font-size:11px;font-weight:600;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
 .gadd #gAntall{width:70px;flex:none}
 .gadd .btn{white-space:nowrap}
 .gfil{display:flex;gap:6px;margin-bottom:8px}
-.gfil select{width:auto;flex:none}
+.gfil select{width:auto;flex:none;max-width:42%}
 .grw{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:8px;padding:8px 10px;margin-bottom:6px;box-shadow:var(--shadow)}
 .grw .gname{flex:1;min-width:0;word-break:break-word;cursor:pointer}
 .gname small{color:var(--muted);margin-left:4px}
@@ -227,7 +230,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let guests = [], tables = [], guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -329,7 +332,7 @@ function showCreateUser(first) {
     me = data[0]; saveMe($('#nRemember', box).checked); box.classList.add('hidden'); start();
   };
 }
-function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
+function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; groups = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
 
 /* ---------- Data ---------- */
 async function loadUsers() { const { data, error } = await sb.rpc('oppg_brukere_liste'); if (!fail(error)) users = data || []; }
@@ -350,14 +353,15 @@ async function createBoard(navn, silent) {
 }
 async function loadBoard() {
   if (!boardId) return;
-  const [c, k, g, t] = await Promise.all([
+  const [c, k, g, t, gr] = await Promise.all([
     sb.from('oppg_kolonner').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_kort').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_gjester').select('*').eq('tavle_id', boardId).order('opprettet'),
-    sb.from('oppg_bord').select('*').eq('tavle_id', boardId).order('posisjon')
+    sb.from('oppg_bord').select('*').eq('tavle_id', boardId).order('posisjon'),
+    sb.from('oppg_grupper').select('*').eq('tavle_id', boardId).order('opprettet')
   ]);
   if (fail(c.error) || fail(k.error)) return;
-  if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || [];
+  if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || [];
   const allCols = c.data || []; cols = allCols.filter(x => !x.arkivert); archCols = allCols.filter(x => x.arkivert); cards = k.data || [];
   await loadActivity(); await loadFiles();
   render();
@@ -375,7 +379,7 @@ function subscribe() {
   try {
     if (channel) sb.removeChannel(channel);
     channel = sb.channel('oppg-live');
-    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
+    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord', 'oppg_grupper'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
     channel.subscribe();
   } catch (e) { console.warn('Sanntid ikke tilgjengelig her – oppdater siden for å se andres endringer', e); }
 }
@@ -668,6 +672,8 @@ function showArchive() {
 
 /* ---------- Gjesteliste og bordplassering ---------- */
 const GST = { venter: { n: 'Venter', c: '#667085' }, kommer: { n: 'Kommer', c: '#12b76a' }, kanskje: { n: 'Kanskje', c: '#e5b400' }, kommer_ikke: { n: 'Kommer ikke', c: '#d92d20' } };
+const grp = id => groups.find(x => x.id === id);
+const gTag = g => { const x = grp(g.gruppe_id); return x ? `<span class="gtag" style="background:${esc(x.farge)}">${esc(x.navn)}</span>` : ''; };
 const seatsUsed = tid => guests.filter(g => g.bord_id === tid && g.status !== 'kommer_ikke').reduce((n, g) => n + g.antall, 0);
 const sumBy = st => guests.filter(g => g.status === st).reduce((n, g) => n + g.antall, 0);
 function openGuests() { guestsOpen = true; $('#guests').classList.remove('hidden'); renderGuests(); }
@@ -675,13 +681,13 @@ function closeGuests() { guestsOpen = false; const el = $('#guests'); el.classLi
 function gGuestHtml(g) {
   const st = GST[g.status];
   return `<div class="grw" data-g="${g.id}"><span class="gdot" style="background:${st.c}" title="${st.n}"></span>
-    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}</div>
+    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}</div>
     <button class="gbtn yes ${g.status === 'kommer' ? 'sel' : ''}" data-gs="kommer" data-id="${g.id}" aria-label="Kommer">✔</button>
     <button class="gbtn no ${g.status === 'kommer_ikke' ? 'sel' : ''}" data-gs="kommer_ikke" data-id="${g.id}" aria-label="Kommer ikke">✖</button></div>`;
 }
 function gListHtml() {
   const q = gQuery.toLowerCase();
-  const list = guests.filter(g => (!gFilter || g.status === gFilter) && (!q || g.navn.toLowerCase().includes(q) || (g.notat || '').toLowerCase().includes(q)));
+  const list = guests.filter(g => (!gFilter || g.status === gFilter) && (!gGrp || (gGrp === 'none' ? !g.gruppe_id : g.gruppe_id === gGrp)) && (!q || g.navn.toLowerCase().includes(q) || (g.notat || '').toLowerCase().includes(q)));
   return list.length ? list.map(gGuestHtml).join('') : `<p class="gempty">${guests.length ? 'Ingen treff.' : 'Ingen gjester ennå. Legg til den første ovenfor.'}</p>`;
 }
 function bindGuestRows(root) {
@@ -693,14 +699,19 @@ function renderGuests() {
   const b = boards.find(x => x.id === boardId);
   const total = guests.reduce((n, g) => n + g.antall, 0);
   const sum = `<div class="gsum">${Object.entries(GST).map(([k, v]) => `<span class="chip" style="background:${v.c}">${v.n} ${sumBy(k)}</span>`).join('')}<span class="chip" style="background:var(--muted);color:#fff">Totalt ${total}</span></div>`;
+  const gsum = groups.length ? `<div class="gsum">${groups.map(x => `<span class="chip" style="background:${esc(x.farge)}">${esc(x.navn)} ${guests.filter(g => g.gruppe_id === x.id).reduce((n, g) => n + g.antall, 0)}</span>`).join('')}</div>` : '';
   let body;
   if (gTab === 'liste') {
-    body = `${sum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button></form>
-      <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select></div>
+    body = `${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
+      ${groups.length ? `<select id="gGrpNew" aria-label="Gruppe"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gNewGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>` : ''}</form>
+      <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select>
+        <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select></div>
+      <button class="btn" id="gManage" type="button" style="width:100%;margin-bottom:8px">Grupper (${groups.length}) · lag og rediger</button>
       <div id="gList">${gListHtml()}</div>`;
   } else {
-    const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
-    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}</div>`;
+    const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
+    const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
+    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}</div>`;
     body = `${sum}<div class="gunp"><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
       <div class="gtables">${tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div>
@@ -712,8 +723,10 @@ function renderGuests() {
   $('#gCsv', el).onclick = exportGuests;
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
   if (gTab === 'liste') {
-    $('#gAddForm', el).onsubmit = async e => { e.preventDefault(); await addGuest($('#gNavn', el).value, +$('#gAntall', el).value || 1); setTimeout(() => $('#gNavn')?.focus(), 0); };
+    $('#gAddForm', el).onsubmit = async e => { e.preventDefault(); gNewGrp = ($('#gGrpNew', el) || {}).value || ''; await addGuest($('#gNavn', el).value, +$('#gAntall', el).value || 1, gNewGrp); setTimeout(() => $('#gNavn')?.focus(), 0); };
     $('#gQ', el).oninput = e => { gQuery = e.target.value.trim(); $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
+    $('#gGrpF', el).onchange = e => { gGrp = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
+    $('#gManage', el).onclick = manageGroups;
     $('#gFil', el).onchange = e => { gFilter = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
     bindGuestRows($('#gList', el));
   } else {
@@ -729,9 +742,9 @@ function renderGuests() {
     }));
   }
 }
-async function addGuest(navn, antall) {
+async function addGuest(navn, antall, gruppe) {
   navn = navn.trim(); if (!navn) return;
-  const { data, error } = await sb.from('oppg_gjester').insert({ tavle_id: boardId, navn, antall: Math.min(50, Math.max(1, antall || 1)) }).select().single();
+  const { data, error } = await sb.from('oppg_gjester').insert({ tavle_id: boardId, navn, antall: Math.min(50, Math.max(1, antall || 1)), gruppe_id: gruppe || null }).select().single();
   if (fail(error, 'kunne ikke legge til gjesten')) return;
   guests.push(data); renderGuests();
 }
@@ -747,12 +760,17 @@ function editGuest(id) {
   const m = showModal(`<div class="field"><input class="titlein" id="eN" value="${esc(g.navn)}" maxlength="100" aria-label="Navn"></div>
     <div class="two"><div class="field"><label>Antall personer</label><input id="eA" type="number" min="1" max="50" value="${g.antall}"></div>
     <div class="field"><label>Svar</label><select id="eS">${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${g.status === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Gruppe</label><select id="eG"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${g.gruppe_id === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}<option value="__new">+ Ny gruppe …</option></select></div>
     <div class="field"><label>Bord</label><select id="eB"><option value="">Ikke plassert</option>${tables.map(t => `<option value="${t.id}" ${g.bord_id === t.id ? 'selected' : ''}>${esc(t.navn)} (${seatsUsed(t.id)}/${t.plasser})</option>`).join('')}</select></div>
     <div class="field"><label>Notat (allergier, kontakt, …)</label><textarea id="eT" maxlength="500">${esc(g.notat)}</textarea></div>
     <div class="bar"><button class="btn danger" id="eDel">Slett</button><button class="btn primary" id="eOk">Ferdig</button></div>`);
   $('#eN', m).onchange = e => { const v = e.target.value.trim(); if (v) saveGuest(id, { navn: v }); else e.target.value = g.navn; };
   $('#eA', m).onchange = e => saveGuest(id, { antall: Math.min(50, Math.max(1, +e.target.value || 1)) });
   $('#eS', m).onchange = e => { saveGuest(id, { status: e.target.value }); if (e.target.value === 'kommer_ikke') $('#eB', m).value = ''; };
+  $('#eG', m).onchange = async e => {
+    if (e.target.value !== '__new') return saveGuest(id, { gruppe_id: e.target.value || null });
+    const nx = await newGroup(); if (nx) saveGuest(id, { gruppe_id: nx.id }); else e.target.value = g.gruppe_id || '';
+  };
   $('#eB', m).onchange = e => saveGuest(id, { bord_id: e.target.value || null });
   $('#eT', m).onchange = e => saveGuest(id, { notat: e.target.value });
   $('#eOk', m).onclick = () => { const v = $('#eN', m).value.trim(); if (v && v !== g.navn) saveGuest(id, { navn: v }); const n = $('#eT', m).value; if (n !== g.notat) saveGuest(id, { notat: n }); closeModal(); };
@@ -761,6 +779,33 @@ function editGuest(id) {
     const { error } = await sb.from('oppg_gjester').delete().eq('id', id); if (fail(error, 'kunne ikke slette')) return;
     guests = guests.filter(x => x.id !== id); closeModal(); renderGuests();
   };
+}
+async function newGroup() {
+  const navn = prompt('Navn på gruppen (f.eks. Familie, Bodø, Trondheim-gjengen):'); if (!navn || !navn.trim()) return null;
+  const farge = COLORS[groups.length % COLORS.length];
+  const { data, error } = await sb.from('oppg_grupper').insert({ tavle_id: boardId, navn: navn.trim(), farge }).select().single();
+  if (fail(error, 'kunne ikke lage gruppen')) return null;
+  groups.push(data); return data;
+}
+function manageGroups() {
+  const opts = groups.map(x => ({ label: `${x.navn} (${guests.filter(g => g.gruppe_id === x.id).length})`, fn: () => groupMenu(x.id) }));
+  opts.push({ label: '+ Ny gruppe', fn: async () => { await newGroup(); renderGuests(); } });
+  sheet('Grupper', opts);
+}
+function groupMenu(id) {
+  const x = groups.find(y => y.id === id); if (!x) return;
+  sheet(x.navn, [
+    { label: 'Gi nytt navn', fn: async () => { const v = prompt('Nytt navn:', x.navn); if (v && v.trim()) { const { error } = await sb.from('oppg_grupper').update({ navn: v.trim() }).eq('id', id); if (!fail(error)) { x.navn = v.trim(); renderGuests(); } } } },
+    { label: 'Velg farge', fn: () => {
+      const m = showModal(`<h2>Farge på «${esc(x.navn)}»</h2><div class="colors">${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === x.farge ? 'sel' : ''}"></button>`).join('')}</div>`);
+      m.querySelectorAll('.colors button').forEach(b => b.onclick = async () => { closeModal(); const { error } = await sb.from('oppg_grupper').update({ farge: b.dataset.c }).eq('id', id); if (!fail(error)) { x.farge = b.dataset.c; renderGuests(); } });
+    } },
+    { label: 'Slett gruppe (gjestene beholdes)', danger: true, fn: async () => {
+      if (!confirm(`Slette gruppen «${x.navn}»? Gjestene beholdes uten gruppe.`)) return;
+      const { error } = await sb.from('oppg_grupper').delete().eq('id', id); if (fail(error, 'kunne ikke slette gruppen')) return;
+      groups = groups.filter(y => y.id !== id); guests.forEach(g => { if (g.gruppe_id === id) g.gruppe_id = null; }); if (gGrp === id) gGrp = ''; renderGuests();
+    } }
+  ]);
 }
 async function addTable() {
   const navn = prompt('Navn på bordet:', `Bord ${tables.length + 1}`); if (!navn || !navn.trim()) return;
@@ -783,8 +828,8 @@ function tableMenu(id) {
 }
 function exportGuests() {
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const h = ['navn', 'antall', 'svar', 'bord', 'notat'];
-  const rows = guests.map(g => [g.navn, g.antall, GST[g.status].n, (tables.find(t => t.id === g.bord_id) || {}).navn || '', g.notat]);
+  const h = ['navn', 'antall', 'gruppe', 'svar', 'bord', 'notat'];
+  const rows = guests.map(g => [g.navn, g.antall, (grp(g.gruppe_id) || {}).navn || '', GST[g.status].n, (tables.find(t => t.id === g.bord_id) || {}).navn || '', g.notat]);
   const text = '\ufeff' + [h.join(';'), ...rows.map(r => r.map(q).join(';'))].join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = 'gjesteliste.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
