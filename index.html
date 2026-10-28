@@ -1137,7 +1137,7 @@ function wrapText(ctx, text, maxW, maxLines) {
   return lines.map(l => { while (l.length > 1 && ctx.measureText(l).width > maxW) l = l.slice(0, -2) + '…'; return l; });
 }
 async function buildPlanCanvas(o) {
-  const SC = 2, PW = 1240, M = 50, FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', AV = 22;
+  const SC = 2, M = 50, FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', AV = 22;
   const first = n => n.split(/\s+/)[0], nm = g => o.full ? g.navn : first(g.navn);
   const gcol = g => (grp(g.gruppe_id) || {}).farge || '#98a2b3';
   const byGrp = (a, b) => ((grp(a.gruppe_id) || { navn: '￿' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '￿' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb');
@@ -1158,9 +1158,21 @@ async function buildPlanCanvas(o) {
   });
   const legend = groups.filter(x => seated.some(g => g.gruppe_id === x.id));
   const headH = 120 + (legend.length ? 34 : 0);
+  let PW = 1240, planEnd, floorEls = [];
+  if (o.floor) {
+    ensureFloorPos(); const K = 1.7;
+    const pc = cells.map(c => { const g = planParts(c.t); return { c, cx: (c.t.x + g.W / 2) * K, cy: (c.t.y + g.H / 2) * K }; });
+    floorEls = elements.map(e => ({ e, x: e.x * K, y: e.y * K, w: e.w * K, h: e.h * K }));
+    const minX = Math.min(...pc.map(q => q.cx - q.c.w / 2), ...floorEls.map(z => z.x)), minY = Math.min(...pc.map(q => q.cy - q.c.h / 2), ...floorEls.map(z => z.y));
+    pc.forEach(q => { q.c.x = M + q.cx - q.c.w / 2 - minX; q.c.y = headH + q.cy - q.c.h / 2 - minY; });
+    floorEls.forEach(z => { z.X = M + z.x - minX; z.Y = headH + z.y - minY; });
+    PW = Math.max(1240, Math.ceil(Math.max(0, ...cells.map(c => c.x + c.w), ...floorEls.map(z => z.X + z.w)) + M));
+    planEnd = Math.max(headH, ...cells.map(c => c.y + c.h), ...floorEls.map(z => z.Y + z.h)) + 20;
+  } else {
   let x = M, y = headH, rowH = 0;
   cells.forEach(c => { if (x + c.w > PW - M && x > M) { x = M; y += rowH + 10; rowH = 0; } c.x = x; c.y = y; x += c.w + 10; rowH = Math.max(rowH, c.h); });
-  const planEnd = y + rowH + 20;
+  planEnd = y + rowH + 20;
+  }
   // navneliste
   const blocks = [];
   if (o.list) {
@@ -1195,6 +1207,11 @@ async function buildPlanCanvas(o) {
     else if (mode === 'above') { ctx.textAlign = 'center'; lines.forEach((l, k) => ctx.fillText(l, cx, cy - AV - 9 - (lines.length - 1 - k) * 15)); }
     else { ctx.textAlign = dx > 0 ? 'left' : 'right'; lines.forEach((l, k) => ctx.fillText(l, cx + (dx > 0 ? AV + 8 : -AV - 8), cy + 4 - (lines.length - 1) * 7 + k * 15)); }
   };
+  floorEls.forEach(z => {
+    ctx.save(); ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.strokeStyle = '#98a2b3'; ctx.fillStyle = '#f2f4f7';
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(z.X, z.Y, z.w, z.h, 14) : ctx.rect(z.X, z.Y, z.w, z.h); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = '#667085'; ctx.font = `700 ${Math.min(22, Math.max(13, z.h / 3))}px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(wrapText(ctx, z.e.navn, z.w - 16, 1)[0], z.X + z.w / 2, z.Y + z.h / 2 + 6);
+  });
   cells.forEach(c => {
     const t = c.t, over = c.slots.length > t.plasser, ox = c.x, oy = c.y;
     ctx.lineWidth = 3; ctx.strokeStyle = over ? '#d92d20' : '#c3c8d4'; ctx.fillStyle = '#f4f5f8';
@@ -1229,22 +1246,23 @@ async function buildPlanCanvas(o) {
 async function planExport() {
   if (!tables.length) return toast('Lag minst ett bord først');
   const hasPhotos = guests.some(g => g.bilde_sti && g.bord_id);
-  const o = { photos: hasPhotos, full: true, list: true };
+  const o = { photos: hasPhotos, full: true, list: true, floor: false };
   const m = showModal(`<h2>Bilde av bordplassering</h2>
     <label class="remember"><input type="checkbox" id="xPh" ${o.photos ? 'checked' : ''}> Ta med bilder av gjestene</label>
     <label class="remember"><input type="checkbox" id="xFu" checked> Fullt navn (ellers bare fornavn)</label>
     <label class="remember"><input type="checkbox" id="xLi" checked> Navneliste under tegningen</label>
+    <label class="remember"><input type="checkbox" id="xFl" ${tables.some(t => t.x != null) || elements.length ? 'checked' : ''}> Følg plasseringen i «Lokale» (med scene, bar osv.)</label>
     <div id="xPrev" style="margin:8px 0;max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff;min-height:80px"><p style="padding:24px;text-align:center;color:#667085">Lager bilde …</p></div>
     <div class="photobtns"><button class="btn primary" id="xDl" disabled>Last ned</button><button class="btn" id="xSh" disabled>Del</button><button class="btn" id="xPr" disabled>Skriv ut</button><button class="btn" id="xX">Lukk</button></div>`);
   let cv = null, seq = 0;
   const build = async () => {
     const my = ++seq; ['xDl', 'xSh', 'xPr'].forEach(i => $('#' + i, m).disabled = true);
-    o.photos = $('#xPh', m).checked; o.full = $('#xFu', m).checked; o.list = $('#xLi', m).checked;
+    o.photos = $('#xPh', m).checked; o.full = $('#xFu', m).checked; o.list = $('#xLi', m).checked; o.floor = $('#xFl', m).checked;
     try { const c = await buildPlanCanvas(o); if (my !== seq || !$('#xPrev', m)) return; cv = c; $('#xPrev', m).innerHTML = ''; c.style.cssText = 'width:100%;display:block'; $('#xPrev', m).appendChild(c); ['xDl', 'xSh', 'xPr'].forEach(i => $('#' + i, m).disabled = false); }
     catch (e) { console.error(e); if (my === seq) $('#xPrev', m).innerHTML = '<p style="padding:24px;text-align:center;color:#d92d20">Kunne ikke lage bildet. Prøv uten bilder av gjestene.</p>'; }
   };
   const blob = () => new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('Kunne ikke lage bildet')), 'image/png'));
-  ['xPh', 'xFu', 'xLi'].forEach(i => $('#' + i, m).onchange = build);
+  ['xPh', 'xFu', 'xLi', 'xFl'].forEach(i => $('#' + i, m).onchange = build);
   $('#xX', m).onclick = closeModal;
   $('#xDl', m).onclick = async () => { const bl = await blob(), a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = 'bordplassering.png'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); };
   $('#xSh', m).onclick = async () => {
