@@ -413,9 +413,7 @@ function showAuthLogin(prefill) {
   const box = $('#login'); box.classList.remove('hidden');
   box.innerHTML = `<div class="lbox"><h1>Oppgavetavle</h1><p>Logg inn med e-post. Du får en engangskode.</p>
     <form id="aeF"><div class="field"><label>E-post</label><input id="aeE" type="email" inputmode="email" autocomplete="email" autocapitalize="off" required value="${esc(prefill || '')}"></div>
-    <div class="err" id="err"></div><button class="btn primary" style="width:100%">Send kode</button></form>
-    <button type="button" class="btn" id="aeLegacy" style="width:100%;margin-top:10px">Logg inn med PIN (eldre)</button></div>`;
-  $('#aeLegacy', box).onclick = showLogin;
+    <div class="err" id="err"></div><button class="btn primary" style="width:100%">Send kode</button></form></div>`;
   $('#aeE', box).focus();
   $('#aeF', box).onsubmit = async e => {
     e.preventDefault();
@@ -510,67 +508,11 @@ async function showMembers() {
   };
   load();
 }
-async function showLogin() {
-  $('#app').classList.add('hidden');
-  const box = $('#login'); box.classList.remove('hidden');
-  box.innerHTML = '<div class="lbox"><p>Laster …</p></div>';
-  const { data, error } = await sb.rpc('oppg_brukere_liste');
-  if (error) { box.innerHTML = `<div class="lbox"><h1>Oppgavetavle</h1><p class="err">Kunne ikke koble til: ${esc(error.message)}</p></div>`; return; }
-  users = data || [];
-  if (users.length === 0) return showCreateUser(true);
-  let sel = null;
-  const draw = () => {
-    box.innerHTML = `<div class="lbox"><h1>Oppgavetavle</h1><p>Hvem er du?</p>
-      <div class="users">${users.map(u => `<button class="user ${sel === u.id ? 'sel' : ''}" data-id="${u.id}">${avatar(u)}<span>${esc(u.navn)}</span></button>`).join('')}</div>
-      ${sel ? `<form id="pinForm"><input id="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN-kode" autofocus>
-      <label class="remember"><input type="checkbox" id="remember" ${store.get('oppg_husk') !== '0' ? 'checked' : ''}> Husk meg på denne enheten</label>
-      <div class="err" id="err"></div><button class="btn primary" style="width:100%">Logg inn</button></form>` : ''}
-      <button type="button" class="btn" id="newUserBtn" style="width:100%;margin-top:10px">+ Ny bruker</button>
-      <button type="button" class="btn primary" id="toMailBtn" style="width:100%;margin-top:10px">Logg inn med e-post (anbefalt)</button></div>`;
-    box.querySelectorAll('.user').forEach(b => b.onclick = () => { sel = b.dataset.id; draw(); });
-    $('#newUserBtn', box).onclick = () => showCreateUser(false);
-    $('#toMailBtn', box).onclick = () => showAuthLogin();
-    const f = $('#pinForm', box);
-    if (f) {
-      $('#pin', box).focus();
-      f.onsubmit = async e => {
-        e.preventDefault();
-        const u = userById(sel);
-        const { data, error } = await sb.rpc('oppg_logg_inn', { p_navn: u.navn, p_pin: $('#pin', box).value });
-        if (error || !data || !data.length) { $('#err', box).textContent = error && /For mange/.test(error.message) ? error.message : 'Feil PIN-kode'; $('#pin', box).select(); return; }
-        me = data[0]; saveMe($('#remember', box).checked); box.classList.add('hidden'); start();
-      };
-    }
-  };
-  draw();
-}
-function showCreateUser(first) {
-  const box = $('#login'); box.classList.remove('hidden');
-  let farge = COLORS[0];
-  box.innerHTML = `<div class="lbox"><h1>${first ? 'Velkommen!' : 'Ny person'}</h1>
-    <p>${first ? 'Lag den første brukeren. Flere kan legges til etterpå.' : 'Du trenger invitasjonskoden fra en som allerede bruker appen.'}</p>
-    <form id="nyForm">${first ? '' : '<div class="field"><label>Invitasjonskode</label><input id="nKode" required maxlength="30" autocapitalize="characters" autocomplete="off"></div>'}<div class="field"><label>Navn</label><input id="nNavn" required maxlength="30"></div>
-    <div class="field"><label>PIN-kode (minst 6 tegn)</label><input id="nPin" type="password" inputmode="numeric" minlength="6" required></div>
-    <div class="field"><label>Farge</label><div class="colors">${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === farge ? 'sel' : ''}"></button>`).join('')}</div></div>
-    <label class="remember"><input type="checkbox" id="nRemember" ${store.get('oppg_husk') !== '0' ? 'checked' : ''}> Husk meg på denne enheten</label>
-    <div class="err" id="err"></div><button class="btn primary" style="width:100%">${first ? 'Opprett og start' : 'Opprett bruker'}</button>
-    ${first ? '' : '<button type="button" class="btn" id="nBack" style="width:100%;margin-top:8px">Tilbake</button>'}</form></div>`;
-  if (!first) $('#nBack', box).onclick = showLogin;
-  box.querySelectorAll('.colors button').forEach(b => b.onclick = () => { farge = b.dataset.c; box.querySelectorAll('.colors button').forEach(x => x.classList.toggle('sel', x === b)); });
-  $('#nyForm', box).onsubmit = async e => {
-    e.preventDefault();
-    const { data, error } = await sb.rpc('oppg_ny_bruker2', { p_navn: $('#nNavn', box).value, p_pin: $('#nPin', box).value, p_farge: farge, p_kode: first ? null : $('#nKode', box).value });
-    if (error) { $('#err', box).textContent = error.message.includes('duplicate') ? 'Navnet er tatt' : error.message; return; }
-    if (!data || !data.length) { $('#err', box).textContent = 'Feil invitasjonskode'; return; }
-    me = data[0]; saveMe($('#nRemember', box).checked); box.classList.add('hidden'); start();
-  };
-}
-function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); const was = authMode; authMode = false; authUid = null; if (was) sb.auth.signOut().catch(() => {}); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; groups = []; tableTypes = []; relations = []; elements = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } if (was) showAuthLogin(); else showLogin(); }
+function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); const was = authMode; authMode = false; authUid = null; if (was) sb.auth.signOut().catch(() => {}); me = null; resetFilters(); activity = []; files = []; guests = []; tables = []; groups = []; tableTypes = []; relations = []; elements = []; closeGuests(); $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showAuthLogin(); }
 
 /* ---------- Data ---------- */
 async function loadUsers() {
   if (authMode) { if (!boardId) return; const { data, error } = await sb.rpc('oppg_personer', { p_tavle: boardId }); if (!error) users = data || []; return; }
-  const { data, error } = await sb.rpc('oppg_brukere_liste'); if (!fail(error)) users = data || [];
 }
 async function loadBoards() {
   const { data, error } = await sb.from('oppg_tavler').select('*').order('posisjon').order('opprettet');
@@ -581,9 +523,9 @@ async function loadBoards() {
   if (!boards.find(b => b.id === boardId)) boardId = boards[0].id;
 }
 async function createBoard(navn, silent) {
-  const { data, error } = await sb.from('oppg_tavler').insert({ navn, posisjon: boards.length }).select().single();
-  if (fail(error)) return;
-  await sb.from('oppg_kolonner').insert(['Å gjøre', 'Pågår', 'Ferdig'].map((t, i) => ({ tavle_id: data.id, tittel: t, posisjon: (i + 1) * STEP })));
+  const r = await sb.rpc('oppg_lag_tavle', { p_navn: navn });
+  if (fail(r.error)) return;
+  const data = Array.isArray(r.data) ? r.data[0] : r.data;
   boards.push(data); boardId = data.id; store.set('oppg_tavle', boardId);
   await loadBoard(); if (!silent) toast('Tavle opprettet');
 }
@@ -603,7 +545,7 @@ async function loadBoard() {
   if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || []; if (!el.error) elements = el.data || [];
   const allCols = c.data || []; cols = allCols.filter(x => !x.arkivert); archCols = allCols.filter(x => x.arkivert); cards = k.data || [];
   if (authMode) await loadUsers();
-  await loadActivity(); await loadFiles();
+  await loadActivity(); await loadFiles(); await signBoardImages();
   render();
   if (guestsOpen && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('#guests input, #guests select'))) renderGuests();
 }
@@ -633,7 +575,16 @@ async function start() {
 /* ---------- Bilder ---------- */
 const BUCKET = 'oppg-bilder';
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
-const pubUrl = sti => sb.storage.from(BUCKET).getPublicUrl(sti).data.publicUrl;
+const urlCache = {};
+const pubUrl = sti => urlCache[sti] || '';
+async function signUrls(paths) {
+  const need = [...new Set((paths || []).filter(p => p && !urlCache[p]))]; if (!need.length) return;
+  const { data, error } = await sb.storage.from(BUCKET).createSignedUrls(need, 3600);
+  if (error) { console.error(error); return; }
+  (data || []).forEach(r => { if (r.signedUrl) urlCache[r.path || need[data.indexOf(r)]] = r.signedUrl; });
+}
+const signBoardImages = () => signUrls([...files.map(f => f.sti), ...guests.map(g => g.bilde_sti)]);
+setInterval(() => { Object.keys(urlCache).forEach(k => delete urlCache[k]); if (typeof boardId !== 'undefined' && boardId) signBoardImages().then(() => { try { render(); } catch (e) {} }); }, 45 * 60 * 1000);
 const fileUrl = f => pubUrl(f.sti);
 async function loadFiles() {
   if (!boardId) return;
@@ -663,7 +614,7 @@ async function addPhotos(cardId, list) {
       if (up.error) { console.error(up.error); toast('Feil: kunne ikke laste opp bildet (' + (up.error.message || 'ukjent feil') + ')', 9000); continue; }
       const { data, error } = await sb.from('oppg_vedlegg').insert({ kort_id: cardId, tavle_id: boardId, sti, bruker_id: me.id }).select().single();
       if (error) { console.error(error); await sb.storage.from(BUCKET).remove([sti]); toast('Feil: kunne ikke lagre bildet (' + error.message + ')', 9000); continue; }
-      files.push(data); ok++;
+      await signUrls([sti]); files.push(data); ok++;
     } catch (e) { console.error(e); toast('Feil: ' + (e && e.message ? e.message : 'kunne ikke lese bildet'), 9000); }
   }
   if (ok) { toast(ok === 1 ? 'Bilde lagt til' : `${ok} bilder lagt til`); logAct('kommentar', ok === 1 ? '📷 la til et bilde' : `📷 la til ${ok} bilder`, card); }
@@ -1005,7 +956,7 @@ async function setGuestPhoto(id, src) {
     const old = g.bilde_sti;
     const { error } = await sb.from('oppg_gjester').update({ bilde_sti: sti }).eq('id', id);
     if (error) { console.error(error); await sb.storage.from(BUCKET).remove([sti]); toast('Feil: kunne ikke lagre bildet (' + error.message + ')', 9000); return editGuest(id); }
-    g.bilde_sti = sti; if (old) await sb.storage.from(BUCKET).remove([old]);
+    await signUrls([sti]); g.bilde_sti = sti; if (old) await sb.storage.from(BUCKET).remove([old]);
     toast('Bilde lagret'); renderGuests(); editGuest(id);
   } catch (e) { console.error(e); toast('Feil: ' + (e && e.message ? e.message : 'kunne ikke laste opp bildet'), 9000); editGuest(id); }
 }
@@ -1385,35 +1336,6 @@ function startTour(steps) {
   $('#tNext').onclick = () => { if (tour.i < steps.length - 1) show(tour.i + 1); else endTour(); };
   show(0);
 }
-function showInviteCode() {
-  const m = showModal(`<h2>Invitasjonskode</h2><p style="color:var(--muted);margin:0 0 12px;font-size:14px">Nye brukere må skrive inn denne koden for å lage en bruker. Del den bare med folk du stoler på. Skriv inn PIN-koden din for å se den.</p>
-    <form id="icF"><input id="icPin" type="password" inputmode="numeric" placeholder="Din PIN" required autocomplete="current-password"><div class="err" id="icErr"></div>
-    <div class="bar"><button type="button" class="btn" id="icX">Lukk</button><button class="btn primary">Vis kode</button></div></form>`);
-  $('#icX', m).onclick = closeModal; $('#icPin', m).focus();
-  let pin = '';
-  const show = code => {
-    m.innerHTML = `<h2>Invitasjonskode</h2><div style="font-size:30px;font-weight:700;letter-spacing:.08em;text-align:center;margin:10px 0 14px;user-select:all">${esc(code)}</div>
-      <div class="photobtns" style="justify-content:center;margin-bottom:14px"><button class="btn" id="icCopy">Kopier</button></div>
-      <form id="icN" class="field"><label>Bytt kode (6–30 tegn)</label><div style="display:flex;gap:8px"><input id="icNew" maxlength="30" minlength="6" autocapitalize="characters" autocomplete="off" placeholder="Ny kode"><button class="btn">Bytt</button></div><div class="err" id="icErr2"></div></form>
-      <div class="bar"><span></span><button class="btn primary" id="icOk">Ferdig</button></div>`;
-    $('#icOk', m).onclick = closeModal;
-    $('#icCopy', m).onclick = async () => toast(await copyText(code) ? 'Koden er kopiert' : 'Kunne ikke kopiere');
-    $('#icN', m).onsubmit = async e => {
-      e.preventDefault();
-      const { data, error } = await sb.rpc('oppg_invitasjonskode', { p_navn: me.navn, p_pin: pin, p_ny: $('#icNew', m).value });
-      if (error) { $('#icErr2', m).textContent = error.message; return; }
-      if (!data) { $('#icErr2', m).textContent = 'Feil PIN'; return; }
-      toast('Koden er byttet'); show(data);
-    };
-  };
-  $('#icF', m).onsubmit = async e => {
-    e.preventDefault(); pin = $('#icPin', m).value;
-    const { data, error } = await sb.rpc('oppg_invitasjonskode', { p_navn: me.navn, p_pin: pin });
-    if (error) { $('#icErr', m).textContent = error.message; return; }
-    if (!data) { $('#icErr', m).textContent = 'Feil PIN'; return; }
-    show(data);
-  };
-}
 function guideMenu() {
   sheet('Guide: slik bruker du appen', [
     { label: '📋 Tavlen og oppgavene', fn: () => startTour(TOUR_BOARD) },
@@ -1429,10 +1351,7 @@ async function copyText(t) {
 }
 function showRsvpLinks() {
   if (!guests.length) return toast('Legg til gjester først');
-  const m = showModal(`<h2>Svarlenker</h2><p style="color:var(--muted);margin:0 0 12px;font-size:14px">Hver gjest får sin egen lenke og kan svare kommer, kanskje eller kommer ikke, velge antall og skrive en melding. Svaret dukker opp her med en gang. Skriv inn PIN-koden din for å hente lenkene.</p>
-    <form id="rlF"><input id="rlPin" type="password" inputmode="numeric" placeholder="Din PIN" required autocomplete="current-password"><div class="err" id="rlErr"></div>
-    <div class="bar"><button type="button" class="btn" id="rlX">Lukk</button><button class="btn primary">Hent lenker</button></div></form>`);
-  $('#rlX', m).onclick = closeModal; $('#rlPin', m).focus();
+  const m = showModal('<h2>Svarlenker</h2>');
   const renderLinks = data => {
     const tok = Object.fromEntries((data || []).map(r => [r.gjest_id, r.token]));
     const rows = guests.slice().sort((a, b) => a.navn.localeCompare(b.navn, 'nb')).filter(g => tok[g.id]);
@@ -1453,13 +1372,6 @@ function showRsvpLinks() {
     sb.rpc('oppg_rsvp_lenker2', { p_tavle: boardId }).then(({ data, error }) => { if (error) { closeModal(); toast('Feil: ' + error.message, 7000); } else renderLinks(data || []); });
     return;
   }
-  $('#rlF', m).onsubmit = async e => {
-    e.preventDefault();
-    const { data, error } = await sb.rpc('oppg_rsvp_lenker', { p_navn: me.navn, p_pin: $('#rlPin', m).value, p_tavle: boardId });
-    if (error) { $('#rlErr', m).textContent = error.message.includes('Ikke tillatt') ? 'Feil PIN' : error.message; return; }
-    if (!data || !data.length) { $('#rlErr', m).textContent = 'Feil PIN'; return; }
-    renderLinks(data);
-  };
 }
 async function showRsvp(token) {
   document.title = 'Svar på invitasjon';
@@ -1983,7 +1895,7 @@ function boardMenu() {
 }
 function meMenu() {
   sheet(me.navn + (me.epost ? ' · ' + me.epost : ''), [
-    ...(authMode ? [{ label: '👥 Medlemmer og invitasjoner', fn: showMembers }] : [{ label: '✉ Logg inn med e-post (anbefalt)', fn: () => { logout(); showAuthLogin(); } }, { label: '🔑 Invitasjonskode for nye brukere', fn: showInviteCode }]),
+    ...(authMode ? [{ label: '👥 Medlemmer og invitasjoner', fn: showMembers }] : []),
     { label: '❓ Guide og hjelp', fn: guideMenu },
     { label: 'Arkiv', fn: showArchive },
     { label: 'Aktivitet', fn: showActivity },
@@ -2047,7 +1959,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && me
   sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT' && authMode) { authMode = false; me = null; if (channel) { sb.removeChannel(channel); channel = null; } showAuthLogin(); } });
   const { data: sd } = await sb.auth.getSession();
   if (sd && sd.session) return startAuth();
-  if (me && me.id) { $('#login').classList.add('hidden'); start(); } else showAuthLogin();
+  showAuthLogin();
 })();
 </script>
 </body>
