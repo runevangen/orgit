@@ -452,7 +452,7 @@ function render() {
   const lastCol = cols.length ? cols[cols.length - 1].id : null;
   const today = new Date().toISOString().slice(0, 10);
   const html = cols.map(col => {
-    let list = cards.filter(c => c.kolonne_id === col.id && !c.arkivert);
+    let list = cards.filter(c => c.kolonne_id === col.id && !c.arkivert).sort((a, b) => a.posisjon - b.posisjon);
     const total = list.length;
     if (onlyMine) list = list.filter(c => c.ansvarlig === me.id);
     if (filtering()) list = list.filter(c => matches(c, col.id === lastCol, today));
@@ -631,6 +631,7 @@ function colMenu(id) {
   const col = cols.find(c => c.id === id), i = cols.indexOf(col);
   const opts = [{ label: 'Gi nytt navn', fn: async () => { const v = prompt('Nytt navn på kolonnen:', col.tittel); if (v && v.trim()) { const { error } = await sb.from('oppg_kolonner').update({ tittel: v.trim() }).eq('id', id); if (!fail(error)) { col.tittel = v.trim(); render(); } } } }];
   opts.push({ label: 'Velg farge', fn: () => colColor(col) });
+  opts.push({ label: 'Sorter etter prioritet (høy øverst)', fn: () => sortByPrio(id) });
   opts.push({ label: 'Arkiver kolonne (skjuler kortene)', fn: async () => {
     const { error } = await sb.from('oppg_kolonner').update({ arkivert: true }).eq('id', id);
     if (!fail(error)) { col.arkivert = true; cols = cols.filter(c => c.id !== id); archCols.push(col); render(); toast('Kolonnen er arkivert. Finn den under Arkiv.'); }
@@ -648,6 +649,15 @@ function colMenu(id) {
     if (!fail(error)) { cols = cols.filter(c => c.id !== id); cards = cards.filter(c => c.kolonne_id !== id); render(); }
   } });
   sheet(col.tittel, opts);
+}
+async function sortByPrio(colId) {
+  const list = cards.filter(c => c.kolonne_id === colId && !c.arkivert).sort((a, b) => (b.prioritet || 0) - (a.prioritet || 0) || a.posisjon - b.posisjon);
+  if (list.length < 2) return;
+  list.forEach((c, i) => { c.posisjon = (i + 1) * STEP; });
+  render();
+  const r = await Promise.all(list.map(c => sb.from('oppg_kort').update({ posisjon: c.posisjon }).eq('id', c.id)));
+  if (r.some(x => fail(x.error, 'kunne ikke sortere'))) return;
+  toast('Sortert etter prioritet');
 }
 function colColor(col) {
   const m = showModal(`<h2>Farge på «${esc(col.tittel)}»</h2><div class="colors"><button type="button" class="none ${!col.farge ? 'sel' : ''}" data-c="">Ingen</button>${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === col.farge ? 'sel' : ''}"></button>`).join('')}</div>`);
