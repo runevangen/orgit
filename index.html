@@ -199,7 +199,7 @@ body.dragging #board{scroll-snap-type:none}
 .ftool .btn{padding:6px 10px}
 .gview .btn{font-size:13px;padding:6px 6px}
 /* Skjermlås og kolonneindikator */
-@media (max-width:600px){.col,.newcol{width:calc(100vw - 24px)}}
+@media (max-width:600px){.col,.newcol{width:100%}#board{padding:12px 16px;gap:32px;scroll-padding:0 16px}header{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}}
 #dots{display:flex;justify-content:center;gap:8px;padding:6px 0 calc(10px + env(safe-area-inset-bottom));min-height:12px}
 #dots:empty{display:none}
 .dot{width:8px;height:8px;border-radius:4px;background:var(--line);border:0;padding:0;transition:width .2s,background .2s}
@@ -241,7 +241,6 @@ body.dragging #board{scroll-snap-type:none}
     <button id="searchBtn" class="btn icon" title="Søk" aria-label="Søk">🔍</button>
     <button id="mineBtn" class="btn" title="Vis bare mine oppgaver">Mine</button>
     <button id="guestBtn" class="btn icon" title="Gjesteliste og bordplassering" aria-label="Gjester">👥</button>
-    <button id="themeBtn" class="btn icon" title="Tema"></button>
     <button id="meBtn" class="btn icon" title="Meg"></button>
     <button id="logoutBtn" class="btn icon" title="Logg ut" aria-label="Logg ut">⎋</button>
   </header>
@@ -311,7 +310,6 @@ const THEME_ICON = { auto: '◐', light: '☀', dark: '☾' };
 const THEME_NAME = { auto: 'Auto', light: 'Lys', dark: 'Mørk' };
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
-  const b = $('#themeBtn'); b.textContent = THEME_ICON[t]; b.title = 'Tema: ' + THEME_NAME[t];
 }
 function cycleTheme() {
   const cur = store.get('oppg_tema') || 'auto';
@@ -581,7 +579,7 @@ function render() {
 }
 function updateDots() {
   const b = $('#board'), list = [...b.querySelectorAll('.col')]; if (!list.length) return;
-  let best = 0, bd = Infinity; list.forEach((el, i) => { const d = Math.abs(el.offsetLeft - 12 - b.scrollLeft); if (d < bd) { bd = d; best = i; } });
+  let best = 0, bd = Infinity; list.forEach((el, i) => { const d = Math.abs(el.offsetLeft - parseFloat(getComputedStyle(b).paddingLeft) - b.scrollLeft); if (d < bd) { bd = d; best = i; } });
   document.querySelectorAll('#dots .dot').forEach((d, i) => d.classList.toggle('on', i === best));
 }
 function cardHtml(c, isLast, today) {
@@ -1524,10 +1522,9 @@ document.addEventListener('click', e => {
   if (t.closest('#newColBtn')) return addColumn();
 });
 $('#board').addEventListener('scroll', updateDots, { passive: true });
-$('#dots').onclick = e => { const d = e.target.closest('[data-dot]'); if (!d) return; const col = $$('.col', $('#board'))[+d.dataset.dot]; if (col) $('#board').scrollTo({ left: col.offsetLeft - 12, behavior: 'smooth' }); };
+$('#dots').onclick = e => { const d = e.target.closest('[data-dot]'); if (!d) return; const col = $$('.col', $('#board'))[+d.dataset.dot]; if (col) $('#board').scrollTo({ left: col.offsetLeft - parseFloat(getComputedStyle($('#board')).paddingLeft), behavior: 'smooth' }); };
 $('#boardBtn').onclick = boardMenu;
 $('#meBtn').onclick = meMenu;
-$('#themeBtn').onclick = cycleTheme;
 $('#guestBtn').onclick = openGuests;
 $('#logoutBtn').onclick = () => { if (confirm('Logge ut?')) logout(); };
 $('#searchBtn').onclick = () => { const bar = $('#searchBar'); bar.classList.toggle('hidden'); if (!bar.classList.contains('hidden')) $('#searchIn').focus(); else { resetFilters(); render(); } };
