@@ -217,6 +217,10 @@ body.dragging #board{scroll-snap-type:none}
 .stepper b{font-size:20px;min-width:28px;text-align:center}
 .rsvpdone{text-align:center;padding:8px 0}
 .rsvpdone .big{font-size:40px}
+.invbox{background:var(--col);border-radius:12px;padding:12px;margin:0 0 14px;text-align:left;font-size:14px}
+.invbox .when{font-weight:600;margin-bottom:2px}
+.invbox .txt{white-space:pre-wrap;margin-top:8px;color:var(--text)}
+.invbox .frist{margin-top:8px;color:var(--muted);font-size:13px}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -818,6 +822,7 @@ function renderGuests() {
       <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select>
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select></div>
       <button class="btn" id="gManage" type="button" style="width:100%;margin-bottom:8px">Grupper (${groups.length}) · lag og rediger</button>
+      <button class="btn" id="gInv" type="button" style="width:100%;margin-bottom:8px">📅 Invitasjon: dato, sted og tekst</button>
       <button class="btn" id="gLinks" type="button" style="width:100%;margin-bottom:8px">✉ Svarlenker til gjestene</button>
       <div id="gList">${gListHtml()}</div>`;
   } else {
@@ -844,6 +849,7 @@ function renderGuests() {
     $('#gGrpF', el).onchange = e => { gGrp = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
     $('#gManage', el).onclick = manageGroups;
     $('#gLinks', el).onclick = showRsvpLinks;
+    $('#gInv', el).onclick = editInvite;
     $('#gFil', el).onchange = e => { gFilter = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
     bindGuestRows($('#gList', el));
   } else {
@@ -1012,6 +1018,26 @@ function seatPicker(tid) {
   const hint = g => { const r = relsOf(g.id).map(x => ({ x, o: relOther(x, g.id) })).filter(y => y.o && y.o.bord_id === tid && y.o.status !== 'kommer_ikke'); const no = r.filter(y => y.x.type === 'ikke_sammen').map(y => y.o.navn), yes = r.filter(y => y.x.type === 'sammen').map(y => y.o.navn); return (no.length ? ' ⛔ ' + no.join(', ') : '') + (yes.length ? ' 💞 ' + yes.join(', ') : ''); };
   sheet(`Sett ved ${t.navn}`, unp.map(g => ({ label: `${g.navn}${g.antall > 1 ? ' (+' + (g.antall - 1) + ')' : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}${hint(g)}`, fn: () => saveGuest(g.id, { bord_id: tid }) })));
 }
+const fmtDato = d => { if (!d) return ''; const t = new Date(d + 'T00:00:00').toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
+function editInvite() {
+  const b = boards.find(x => x.id === boardId); if (!b) return;
+  const m = showModal(`<h2>Invitasjon</h2><p style="color:var(--muted);margin:0 0 12px;font-size:14px">Dette ser gjestene på svarsiden og i meldingen du sender med lenken.</p>
+    <form id="ivF"><div class="field"><label>Tittel</label><input id="ivN" value="${esc(b.arr_navn || '')}" placeholder="${esc(b.navn)}" maxlength="80"></div>
+    <div class="two"><div class="field"><label>Dato</label><input id="ivD" type="date" value="${esc(b.arr_dato || '')}"></div><div class="field"><label>Klokkeslett</label><input id="ivT" type="time" value="${esc(b.arr_tid || '')}"></div></div>
+    <div class="field"><label>Sted</label><input id="ivS" value="${esc(b.arr_sted || '')}" placeholder="F.eks. Folkets hus, Bodø" maxlength="120"></div>
+    <div class="field"><label>Svar innen</label><input id="ivF2" type="date" value="${esc(b.arr_frist || '')}"></div>
+    <div class="field"><label>Hilsen / informasjon</label><textarea id="ivX" maxlength="800" placeholder="Hei! Vi gleder oss til å feire sammen med dere …" style="min-height:110px">${esc(b.arr_tekst || '')}</textarea></div>
+    <div class="err" id="ivE"></div><div class="bar"><button type="button" class="btn" id="ivC">Avbryt</button><button class="btn primary">Lagre</button></div></form>`);
+  $('#ivC', m).onclick = closeModal;
+  $('#ivF', m).onsubmit = async e => {
+    e.preventDefault();
+    const v = id => $(id, m).value.trim() || null;
+    const patch = { arr_navn: v('#ivN'), arr_dato: v('#ivD'), arr_tid: v('#ivT'), arr_sted: v('#ivS'), arr_frist: v('#ivF2'), arr_tekst: v('#ivX') };
+    const { error } = await sb.from('oppg_tavler').update(patch).eq('id', boardId);
+    if (error) { $('#ivE', m).textContent = error.message; return; }
+    Object.assign(b, patch); closeModal(); toast('Invitasjonen er lagret');
+  };
+}
 const rsvpBase = () => location.origin + location.pathname + '?svar=';
 async function copyText(t) {
   try { await navigator.clipboard.writeText(t); return true; } catch {}
@@ -1031,7 +1057,8 @@ function showRsvpLinks() {
     const rows = guests.slice().sort((a, b) => a.navn.localeCompare(b.navn, 'nb')).filter(g => tok[g.id]);
     const url = g => rsvpBase() + tok[g.id];
     const b = boards.find(x => x.id === boardId);
-    const msg = g => `Hei ${g.navn.split(' ')[0]}! Kommer du til ${b ? b.navn : 'arrangementet'}? Svar her: ${url(g)}`;
+    const ev = (b && (b.arr_navn || b.navn)) || 'arrangementet', when = b && b.arr_dato ? ` ${fmtDato(b.arr_dato)}${b.arr_tid ? ' kl. ' + b.arr_tid : ''}` : '';
+    const msg = g => `Hei ${g.navn.split(' ')[0]}! Du er invitert til ${ev}${when}${b && b.arr_sted ? ' (' + b.arr_sted + ')' : ''}. Svar her: ${url(g)}`;
     m.innerHTML = `<h2>Svarlenker</h2><p style="color:var(--muted);margin:0 0 8px;font-size:13px">Send hver gjest sin egen lenke. Ikke del lenkene åpent.</p>
       <div class="photobtns" style="margin-bottom:10px"><button class="btn" id="rlAll">Kopier alle (navn og lenke)</button><button class="btn" id="rlClose">Lukk</button></div>
       <div style="max-height:52vh;overflow:auto">${rows.map(g => `<div class="grw" style="margin-bottom:6px"><span class="gdot" style="background:${GST[g.status].c}" title="${GST[g.status].n}"></span><div class="gname" style="cursor:default">${esc(g.navn)}<small>${GST[g.status].n}${g.svar_tid ? ' ✉' : ''}</small></div><button class="btn" data-rc="${g.id}">Kopier</button><button class="btn" data-rs="${g.id}">Del</button></div>`).join('')}</div>`;
@@ -1045,12 +1072,13 @@ async function showRsvp(token) {
   document.title = 'Svar på invitasjon';
   $('#app').classList.add('hidden'); const box = $('#login'); box.classList.remove('hidden');
   box.innerHTML = '<div class="lbox"><p>Laster …</p></div>';
-  const { data, error } = await sb.rpc('oppg_rsvp_hent', { p_token: token });
+  const { data, error } = await sb.rpc('oppg_rsvp_hent2', { p_token: token });
   if (error || !data || !data.length) { box.innerHTML = '<div class="lbox"><h1>Ugyldig lenke</h1><p>Lenken finnes ikke lenger. Be arrangøren om en ny.</p></div>'; return; }
   const g = data[0]; let st = g.status === 'venter' ? '' : g.status, n = g.antall, msg = g.melding || '';
   const ST = { kommer: '✔ Jeg kommer', kanskje: '? Kanskje', kommer_ikke: '✖ Kommer ikke' };
   const draw = () => {
-    box.innerHTML = `<div class="lbox"><h1>Hei ${esc(g.navn.split(' ')[0])}!</h1><p>${esc(g.tavle_navn)}</p>
+    box.innerHTML = `<div class="lbox"><h1>Hei ${esc(g.navn.split(' ')[0])}!</h1><p>Du er invitert til <b>${esc(g.arr_navn || g.tavle_navn)}</b></p>
+      ${g.arr_dato || g.arr_sted || g.arr_tekst || g.arr_frist ? `<div class="invbox">${g.arr_dato ? `<div class="when">📅 ${esc(fmtDato(g.arr_dato))}${g.arr_tid ? ' kl. ' + esc(g.arr_tid) : ''}</div>` : ''}${g.arr_sted ? `<div>📍 ${esc(g.arr_sted)}</div>` : ''}${g.arr_tekst ? `<div class="txt">${esc(g.arr_tekst)}</div>` : ''}${g.arr_frist ? `<div class="frist">Svar gjerne innen ${esc(fmtDato(g.arr_frist).toLowerCase())}</div>` : ''}</div>` : ''}
       <div class="rsvpq">Kommer du?</div>
       <div class="rsvpbtns">${Object.entries(ST).map(([k, v]) => `<button type="button" class="${k} ${st === k ? 'sel' : ''}" data-st="${k}">${v}</button>`).join('')}</div>
       ${st && st !== 'kommer_ikke' ? `<div class="rsvpq">Hvor mange kommer?</div><div class="stepper"><button type="button" class="btn" id="rMin" aria-label="Færre">−</button><b>${n}</b><button type="button" class="btn" id="rPlu" aria-label="Flere">+</button></div>` : ''}
@@ -1062,8 +1090,14 @@ async function showRsvp(token) {
       msg = $('#rMsg', box).value;
       const r = await sb.rpc('oppg_rsvp_svar', { p_token: token, p_status: st, p_antall: st === 'kommer_ikke' ? null : n, p_melding: msg });
       if (r.error || r.data !== true) { $('#rErr', box).textContent = 'Kunne ikke sende svaret. Prøv igjen.'; return; }
-      box.innerHTML = `<div class="lbox rsvpdone"><div class="big">${st === 'kommer' ? '🎉' : st === 'kanskje' ? '👍' : '👋'}</div><h1>Takk, ${esc(g.navn.split(' ')[0])}!</h1><p>${st === 'kommer' ? `Vi gleder oss! Du har svart at du kommer${n > 1 ? ` (${n} personer)` : ''}.` : st === 'kanskje' ? 'Du har svart kanskje. Gi gjerne beskjed når du vet mer.' : 'Synd at du ikke kan komme. Takk for beskjed.'}</p><button class="btn" id="rAgain" style="width:100%">Endre svar</button></div>`;
+      box.innerHTML = `<div class="lbox rsvpdone"><div class="big">${st === 'kommer' ? '🎉' : st === 'kanskje' ? '👍' : '👋'}</div><h1>Takk, ${esc(g.navn.split(' ')[0])}!</h1><p>${st === 'kommer' ? `Vi gleder oss! Du har svart at du kommer${n > 1 ? ` (${n} personer)` : ''}.` : st === 'kanskje' ? 'Du har svart kanskje. Gi gjerne beskjed når du vet mer.' : 'Synd at du ikke kan komme. Takk for beskjed.'}</p>${st !== 'kommer_ikke' && g.arr_dato ? '<button class="btn" id="rIcs" style="width:100%;margin-bottom:8px">📅 Legg i kalender</button>' : ''}<button class="btn" id="rAgain" style="width:100%">Endre svar</button></div>`;
       $('#rAgain', box).onclick = draw;
+      if ($('#rIcs', box)) $('#rIcs', box).onclick = () => {
+        const ie = t => String(t || '').replace(/\\/g, '\\\\').replace(/[,;]/g, c => '\\' + c).replace(/\r?\n/g, '\\n'), d = g.arr_dato.replace(/-/g, '');
+        const start = g.arr_tid ? `DTSTART:${d}T${g.arr_tid.replace(':', '')}00\r\nDURATION:PT4H` : `DTSTART;VALUE=DATE:${d}`;
+        const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Oppgavetavle//NO', 'BEGIN:VEVENT', `UID:${token.slice(0, 20)}@oppgavetavle`, `DTSTAMP:${new Date().toISOString().replace(/[-:]|\.\d+/g, '')}`, start, `SUMMARY:${ie(g.arr_navn || g.tavle_navn)}`, g.arr_sted ? `LOCATION:${ie(g.arr_sted)}` : '', g.arr_tekst ? `DESCRIPTION:${ie(g.arr_tekst)}` : '', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' })); a.download = 'invitasjon.ics'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+      };
     };
   };
   draw();
