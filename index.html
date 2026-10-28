@@ -7,9 +7,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Oppgaver">
 <title>Oppgavetavle</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234f7cff'/%3E%3Crect x='12' y='14' width='16' height='36' rx='4' fill='white'/%3E%3Crect x='36' y='14' width='16' height='22' rx='4' fill='white' opacity='.85'/%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%234f7cff'/%3E%3Crect x='12' y='14' width='16' height='36' rx='4' fill='white'/%3E%3Crect x='36' y='14' width='16' height='22' rx='4' fill='white' opacity='.85'/%3E%3C/svg%3E">
-<link rel="manifest" href='data:application/manifest+json,{"name":"Oppgavetavle","short_name":"Oppgaver","start_url":".","display":"standalone","background_color":"%230f1115","theme_color":"%234f7cff","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%234f7cff%27/%3E%3C/svg%3E","sizes":"512x512","type":"image/svg+xml","purpose":"any"}]}'>
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#4f7cff">
 <style>
 :root{
   --bg:#eef0f4;--surface:#ffffff;--col:#e4e7ee;--text:#1b1f29;--muted:#667085;--line:#d5d9e3;
@@ -227,6 +229,31 @@ body.dragging #board{scroll-snap-type:none}
 .gdrag{opacity:.35}
 .gghost.gchip,.gghost.gseat{cursor:grabbing}
 .gseat{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+/* Bred skjerm (PC) */
+.gbord{display:flex;flex-direction:column}
+.gside{display:contents}
+.gbtns{order:3}.gmain{order:2}
+.gtools{display:contents}
+@media (min-width:1000px){
+  .gbody{padding:0 28px 32px}
+  .ghead,.gtabs{padding-left:28px;padding-right:28px}
+  .gtabs{max-width:620px}
+  .gliste{max-width:1180px;margin:0 auto}
+  .gliste .gadd{max-width:760px}
+  .gliste .gfil{max-width:760px}
+  .gtools{display:flex;gap:8px;margin-bottom:8px;max-width:1180px}
+  .gtools .btn{width:auto!important;flex:1;margin-bottom:0!important}
+  #gList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+  .gbord{display:grid;grid-template-columns:340px minmax(0,1fr);gap:20px;align-items:start}
+  .gside{display:block;position:sticky;top:0;max-height:calc(100vh - 150px);overflow:auto;padding-right:4px}
+  .gbtns,.gmain{order:0}
+  .gbtns{margin-top:10px}
+  .gmain{min-width:0}
+  .floorscroll{height:calc(100vh - 250px)}
+  .gtables{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  .modal{max-width:620px}
+}
+@media (min-width:1500px){#gList{grid-template-columns:repeat(3,minmax(0,1fr))}}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -293,7 +320,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let elements = [], gScale = 1, relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let elements = [], gScale = (window.innerWidth >= 1000 ? 1.3 : 1), relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -824,26 +851,24 @@ function renderGuests() {
   const gsum = groups.length ? `<div class="gsum">${groups.map(x => `<span class="chip" style="background:${esc(x.farge)}">${esc(x.navn)} ${guests.filter(g => g.gruppe_id === x.id).reduce((n, g) => n + g.antall, 0)}</span>`).join('')}</div>` : '';
   let body;
   if (gTab === 'liste') {
-    body = `${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
+    body = `<div class="gliste">${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
       ${groups.length ? `<select id="gGrpNew" aria-label="Gruppe"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gNewGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>` : ''}</form>
       <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select>
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select></div>
-      <button class="btn" id="gManage" type="button" style="width:100%;margin-bottom:8px">Grupper (${groups.length}) · lag og rediger</button>
+      <div class="gtools"><button class="btn" id="gManage" type="button" style="width:100%;margin-bottom:8px">Grupper (${groups.length}) · lag og rediger</button>
       <button class="btn" id="gInv" type="button" style="width:100%;margin-bottom:8px">📅 Invitasjon: dato, sted og tekst</button>
-      <button class="btn" id="gLinks" type="button" style="width:100%;margin-bottom:8px">✉ Svarlenker til gjestene</button>
-      <div id="gList">${gListHtml()}</div>`;
+      <button class="btn" id="gLinks" type="button" style="width:100%;margin-bottom:8px">✉ Svarlenker til gjestene</button></div>
+      <div id="gList">${gListHtml()}</div></div>`;
   } else {
     const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
     const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}</div></div>`;
     const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Bord</button><button class="btn ${gView === 'floor' ? 'on' : ''}" data-gview="floor">Lokale</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
     const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
-    body = `${sum}${warn}${viewToggle}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
-      <div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
-        <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div>
-      <div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
+    body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div><div class="gbtns"><div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
       <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Lag bilde av bordplassering (last ned, del, skriv ut)</button>
-      <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button>`;
+      <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
+        <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
   }
   el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
     <div class="gtabs"><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bordplassering</button></div><div class="gbody">${body}</div>`;
@@ -1000,7 +1025,7 @@ function bindFloor(el) {
     drag(c, n, async (x, y) => { t.x = x; t.y = y; const { error } = await sb.from('oppg_bord').update({ x, y }).eq('id', t.id); fail(error, 'kunne ikke lagre plasseringen'); }, () => tableMenu(t.id)); });
   el.querySelectorAll('.felem').forEach(n => { const e = elements.find(x => x.id === n.dataset.fe); if (!e) return;
     drag(n, n, async (x, y) => { e.x = x; e.y = y; const { error } = await sb.from('oppg_elementer').update({ x, y }).eq('id', e.id); fail(error, 'kunne ikke lagre plasseringen'); }, () => elementMenu(e.id)); });
-  const zoom = d => { gScale = Math.min(1.5, Math.max(.4, Math.round((gScale + d) * 100) / 100)); renderGuests(); };
+  const zoom = d => { gScale = Math.min(2, Math.max(.4, Math.round((gScale + d) * 100) / 100)); renderGuests(); };
   $('#fZm', el).onclick = () => zoom(-.15); $('#fZp', el).onclick = () => zoom(.15);
   $('#fAuto', el).onclick = () => { if (confirm('Ordne alle bordene automatisk i rader? Egen plassering overskrives.')) { ensureFloorPos(true); renderGuests(); } };
   $('#fAdd', el).onclick = () => sheet('Legg til element', FLOOR_PRESETS.map(([n, w, h]) => ({ label: n, fn: async () => {
