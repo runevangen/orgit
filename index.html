@@ -791,7 +791,8 @@ function renderGuests() {
       <div class="gtables">${gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div>
       <div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
-      <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Lag bilde av bordplassering (last ned, del, skriv ut)</button>`;
+      <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Lag bilde av bordplassering (last ned, del, skriv ut)</button>
+      <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button>`;
   }
   el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
     <div class="gtabs"><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bordplassering</button></div><div class="gbody">${body}</div>`;
@@ -809,6 +810,7 @@ function renderGuests() {
     $('#gNewTable', el).onclick = addTable;
     $('#gTypes', el).onclick = manageTypes;
     $('#gImg', el).onclick = planExport;
+    $('#gCards', el).onclick = cardsExport;
     el.querySelectorAll('[data-tmenu]').forEach(x => x.onclick = () => tableMenu(x.dataset.tmenu));
     el.querySelectorAll('.gchip').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) editGuest(x.dataset.id); });
     el.querySelectorAll('[data-wi]').forEach(x => x.onclick = () => editGuest(issues[+x.dataset.wi].a.id));
@@ -1172,6 +1174,76 @@ async function planExport() {
     document.body.appendChild(fr);
   };
   build();
+}
+
+/* ---------- Navnekort og bordkort ---------- */
+function buildCardsHtml(o) {
+  const fs = n => { const l = n.length; return l <= 14 ? 26 : l <= 22 ? 20 : l <= 32 ? 16 : 13; };
+  const gname = g => (grp(g.gruppe_id) || { navn: '￿' }).navn;
+  const tOrder = id => { const i = tables.findIndex(t => t.id === id); return i < 0 ? 9999 : i; };
+  const coming = guests.filter(g => g.status !== 'kommer_ikke');
+  const people = coming.filter(g => g.bord_id || o.unplaced).sort((a, b) => tOrder(a.bord_id) - tOrder(b.bord_id) || gname(a).localeCompare(gname(b), 'nb') || a.navn.localeCompare(b.navn, 'nb'));
+  const bar = g => o.color && grp(g.gruppe_id) ? `<div class="bar" style="background:${esc(grp(g.gruppe_id).farge)}"></div>` : '';
+  const half = (inner, up) => `<div class="half ${up ? 'up' : ''}">${inner}</div>`;
+  const nameCard = g => {
+    const n = o.full ? g.navn : g.navn.split(/\s+/)[0], inner = `<div class="nm" style="font-size:${fs(n)}pt">${esc(n)}</div>${g.bord_id && o.tableName ? `<div class="tb">${esc(tName(g.bord_id))}</div>` : ''}${bar(g)}`;
+    return o.tent ? `<div class="card name tent">${half(inner, true)}<div class="fold"></div>${half(inner, false)}</div>` : `<div class="card name flat">${half(inner, false)}</div>`;
+  };
+  const tableCard = t => {
+    const list = coming.filter(g => g.bord_id === t.id).sort((a, b) => gname(a).localeCompare(gname(b), 'nb') || a.navn.localeCompare(b.navn, 'nb'));
+    const used = list.reduce((n, g) => n + g.antall, 0), small = list.length > 8 ? 7.5 : 9;
+    const inner = `<div class="nm" style="font-size:${t.navn.length > 14 ? 24 : 34}pt">${esc(t.navn)}</div><div class="tb">${used} av ${t.plasser} plasser</div>${o.listOnTable ? `<div class="tl" style="font-size:${small}pt">${list.map(g => esc(g.navn)).join(' · ') || '&nbsp;'}</div>` : ''}`;
+    return `<div class="card tab tent">${half(inner, true)}<div class="fold"></div>${half(inner, false)}</div>`;
+  };
+  const chunk = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+  const pages = [];
+  if (o.cards) chunk(people.map(nameCard), o.tent ? 8 : 10).forEach(c => pages.push(c));
+  if (o.tabcards) chunk(tables.map(tableCard), 6).forEach(c => pages.push(c));
+  const css = `@page{size:A4;margin:10mm}*{box-sizing:border-box}html,body{margin:0;background:#fff}body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1b1f29;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .page{display:grid;grid-template-columns:repeat(2,90mm);gap:4mm 8mm;justify-content:center;align-content:start;page-break-after:always;break-after:page;width:210mm}
+    .page:last-child{page-break-after:auto;break-after:auto}
+    .card{width:90mm;border:.25mm dashed #b8bdc9;display:flex;flex-direction:column;position:relative;overflow:hidden;break-inside:avoid;background:#fff}
+    .card.tent{height:62mm}.card.flat{height:44mm}.card.tab{height:85mm}
+    .half{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:3mm 4mm;position:relative;min-height:0;overflow:hidden}
+    .half.up{transform:rotate(180deg)}
+    .fold{border-top:.25mm dashed #b8bdc9}
+    .nm{font-weight:700;line-height:1.1;word-break:break-word}
+    .tb{margin-top:1.5mm;font-size:10pt;color:#475467}
+    .tl{margin-top:1.5mm;color:#344054;line-height:1.25;max-height:20mm;overflow:hidden}
+    .bar{position:absolute;left:0;right:0;bottom:0;height:3mm}
+    .empty{padding:20mm;text-align:center;color:#667085;font-size:12pt}`;
+  const body = pages.length ? pages.map(c => `<div class="page">${c.join('')}</div>`).join('') : '<p class="empty">Ingen kort å skrive ut ennå.</p>';
+  return `<!doctype html><html lang="nb"><head><meta charset="utf-8"><title>Navnekort og bordkort</title><style>${css}</style></head><body>${body}</body></html>`;
+}
+function cardsExport() {
+  if (!tables.length && !guests.length) return toast('Legg til gjester og bord først');
+  const o = { cards: true, tabcards: true, tent: true, unplaced: false, full: true, tableName: true, color: true, listOnTable: false };
+  const m = showModal(`<h2>Navnekort og bordkort</h2>
+    <label class="remember"><input type="checkbox" id="cNames" checked> Navnekort (ett per gjest)</label>
+    <label class="remember"><input type="checkbox" id="cTables" checked> Bordkort (ett per bord)</label>
+    <div class="two"><div class="field"><label>Kortform</label><select id="cTent"><option value="1">Telt-kort (brettes)</option><option value="0">Flatt kort</option></select></div>
+    <div class="field"><label>Navn</label><select id="cFull"><option value="1">Fullt navn</option><option value="0">Bare fornavn</option></select></div></div>
+    <label class="remember"><input type="checkbox" id="cTn" checked> Vis bordnavn på navnekortet</label>
+    <label class="remember"><input type="checkbox" id="cCol" checked> Gruppefarge som stripe</label>
+    <label class="remember"><input type="checkbox" id="cNon"> Navneliste på bordkortene</label>
+    <label class="remember"><input type="checkbox" id="cUn"> Ta med gjester som ikke er plassert</label>
+    <div id="cPrev" style="margin:8px 0;height:42vh;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#e4e7ee"><div id="cWrap" style="position:relative"></div></div>
+    <div class="photobtns"><button class="btn primary" id="cPr">Skriv ut / lagre som PDF</button><button class="btn" id="cTab">Åpne i ny fane</button><button class="btn" id="cX">Lukk</button></div>
+    <p style="color:var(--muted);font-size:12px;margin:8px 0 0">Skriv ut i størrelse 100 % (ikke «tilpass til side») på A4. Gjester med følge får ett kort. Telt-kort brettes langs den stiplede streken.</p>`);
+  let fr = null, html = '';
+  const read = () => { o.cards = $('#cNames', m).checked; o.tabcards = $('#cTables', m).checked; o.tent = $('#cTent', m).value === '1'; o.full = $('#cFull', m).value === '1'; o.tableName = $('#cTn', m).checked; o.color = $('#cCol', m).checked; o.listOnTable = $('#cNon', m).checked; o.unplaced = $('#cUn', m).checked; };
+  const draw = () => {
+    read(); const doc = buildCardsHtml(o);
+    html = doc;
+    const wrap = $('#cWrap', m), prev = $('#cPrev', m); wrap.innerHTML = ''; fr = document.createElement('iframe'); fr.style.cssText = 'width:794px;border:0;background:#fff;transform-origin:0 0;position:absolute;left:0;top:0'; fr.setAttribute('title', 'Forhåndsvisning');
+    fr.onload = () => { const h = fr.contentDocument.documentElement.scrollHeight, sc = Math.min(1, (prev.clientWidth - 2) / 794); fr.style.height = h + 'px'; fr.style.transform = `scale(${sc})`; wrap.style.height = Math.ceil(h * sc) + 'px'; wrap.style.width = Math.ceil(794 * sc) + 'px'; };
+    fr.srcdoc = doc; wrap.appendChild(fr);
+  };
+  m.querySelectorAll('input,select').forEach(x => x.onchange = draw);
+  $('#cX', m).onclick = closeModal;
+  $('#cPr', m).onclick = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { toast('Kunne ikke starte utskrift. Prøv «Åpne i ny fane».'); } };
+  $('#cTab', m).onclick = () => { const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' })); const w = window.open(url, '_blank'); if (!w) toast('Nettleseren blokkerte den nye fanen'); setTimeout(() => URL.revokeObjectURL(url), 120000); };
+  draw();
 }
 
 function exportGuests() {
