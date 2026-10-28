@@ -2,7 +2,7 @@
 <html lang="nb" data-theme="auto">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Oppgaver">
@@ -22,16 +22,17 @@
 :root[data-theme=dark]{--bg:#0f1115;--surface:#1e222b;--col:#171a21;--text:#e8eaf0;--muted:#98a2b3;--line:#2c313c;--shadow:0 1px 2px rgba(0,0,0,.5);--overlay:rgba(0,0,0,.6)}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
+html,body{position:fixed;inset:0;width:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation}
 body{background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent;overflow:hidden}
 button{font:inherit;color:inherit;cursor:pointer}
-input,textarea,select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+input,textarea,select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;font-size:16px}
 input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
 textarea{resize:vertical;min-height:80px}
 .hidden{display:none!important}
 
 /* Appramme */
 #app{height:100%;display:flex;flex-direction:column}
-header{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:nowrap}
+header{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:nowrap;overflow:hidden}
 header .grow{flex:1;min-width:0}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;font-weight:600}
 .btn:hover{filter:brightness(.97)}
@@ -197,6 +198,13 @@ body.dragging #board{scroll-snap-type:none}
 .ftool{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .ftool .btn{padding:6px 10px}
 .gview .btn{font-size:13px;padding:6px 6px}
+/* Skjermlås og kolonneindikator */
+@media (max-width:600px){.col,.newcol{width:calc(100vw - 24px)}}
+#dots{display:flex;justify-content:center;gap:8px;padding:6px 0 calc(10px + env(safe-area-inset-bottom));min-height:12px}
+#dots:empty{display:none}
+.dot{width:8px;height:8px;border-radius:4px;background:var(--line);border:0;padding:0;transition:width .2s,background .2s}
+.dot.on{background:var(--accent);width:20px}
+@media (min-width:700px){#dots{display:none}}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -235,6 +243,7 @@ body.dragging #board{scroll-snap-type:none}
       <button id="fReset" class="btn" type="button">Nullstill</button>
     </div></div>
   <div id="board"></div>
+  <div id="dots"></div>
 </div>
 <div id="guests" class="hidden"></div>
 <div id="modalRoot"></div>
@@ -266,6 +275,7 @@ let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
 let elements = [], gScale = 1, relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const initial = n => (n || '?').trim().charAt(0).toUpperCase();
 const userById = id => users.find(u => u.id === id);
@@ -544,6 +554,8 @@ function render() {
   }).join('') + `<div class="newcol"><button id="newColBtn">+ Ny kolonne</button></div>`;
   $('#board').innerHTML = html;
   $('#board').scrollTo({ left: scroll, behavior: 'instant' });
+  $('#dots').innerHTML = cols.length > 1 ? cols.map((c, i) => `<button class="dot" data-dot="${i}" aria-label="${esc(c.tittel)}"></button>`).join('') : '';
+  updateDots();
   document.querySelectorAll('.cards').forEach(el => { el.scrollTop = vscroll[el.dataset.col] || 0; });
   document.querySelectorAll('.cards').forEach(el => new Sortable(el, {
     group: 'kort', animation: 150, draggable: '.card',
@@ -554,6 +566,11 @@ function render() {
     onStart: () => { dragging = true; document.body.classList.add('dragging'); try { navigator.vibrate && navigator.vibrate(15); } catch {} },
     onEnd: onDrop
   }));
+}
+function updateDots() {
+  const b = $('#board'), list = [...b.querySelectorAll('.col')]; if (!list.length) return;
+  let best = 0, bd = Infinity; list.forEach((el, i) => { const d = Math.abs(el.offsetLeft - 12 - b.scrollLeft); if (d < bd) { bd = d; best = i; } });
+  document.querySelectorAll('#dots .dot').forEach((d, i) => d.classList.toggle('on', i === best));
 }
 function cardHtml(c, isLast, today) {
   const lbl = LABELS.find(l => l.k === c.etikett);
@@ -1417,6 +1434,8 @@ document.addEventListener('click', e => {
   if (t.closest('[data-addcancel]')) return render();
   if (t.closest('#newColBtn')) return addColumn();
 });
+$('#board').addEventListener('scroll', updateDots, { passive: true });
+$('#dots').onclick = e => { const d = e.target.closest('[data-dot]'); if (!d) return; const col = $$('.col', $('#board'))[+d.dataset.dot]; if (col) $('#board').scrollTo({ left: col.offsetLeft - 12, behavior: 'smooth' }); };
 $('#boardBtn').onclick = boardMenu;
 $('#meBtn').onclick = meMenu;
 $('#themeBtn').onclick = cycleTheme;
