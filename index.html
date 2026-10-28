@@ -160,7 +160,12 @@ body.dragging #board{scroll-snap-type:none}
 .gth .cnt.over{color:var(--danger);font-weight:700}
 .gth button{border:0;background:transparent;font-size:18px;color:var(--muted);padding:2px 8px}
 .gseats{min-height:48px;display:flex;flex-direction:column;gap:6px}
-.gchip{background:var(--surface);border-radius:8px;padding:8px 10px;border-left:5px solid var(--sc,var(--line));cursor:pointer;word-break:break-word;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.gchip{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:8px;padding:6px 10px 6px 6px;border-left:5px solid var(--sc,var(--line));cursor:pointer;word-break:break-word;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.gav{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none;border:3px solid var(--sc,var(--line));display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;background:var(--muted)}
+.gav.sm{width:30px;height:30px;border-width:2px;font-size:12px}
+.gav.lg{width:84px;height:84px;border-width:4px;font-size:30px;cursor:pointer}
+.gphoto{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.gphoto .btns{display:flex;gap:6px;flex-wrap:wrap}
 .gchip small{color:var(--muted);margin-left:4px}
 .gchip.ghost{opacity:.4}
 .gempty{color:var(--muted);font-size:13px;padding:6px 4px}
@@ -392,7 +397,8 @@ async function start() {
 /* ---------- Bilder ---------- */
 const BUCKET = 'oppg-bilder';
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
-const fileUrl = f => sb.storage.from(BUCKET).getPublicUrl(f.sti).data.publicUrl;
+const pubUrl = sti => sb.storage.from(BUCKET).getPublicUrl(sti).data.publicUrl;
+const fileUrl = f => pubUrl(f.sti);
 async function loadFiles() {
   if (!boardId) return;
   const { data, error } = await sb.from('oppg_vedlegg').select('*').eq('tavle_id', boardId).order('opprettet');
@@ -672,6 +678,38 @@ function showArchive() {
 
 /* ---------- Gjesteliste og bordplassering ---------- */
 const GST = { venter: { n: 'Venter', c: '#667085' }, kommer: { n: 'Kommer', c: '#12b76a' }, kanskje: { n: 'Kanskje', c: '#e5b400' }, kommer_ikke: { n: 'Kommer ikke', c: '#d92d20' } };
+function gAv(g, cls) {
+  const st = `--sc:${GST[g.status].c}`, c = (grp(g.gruppe_id) || {}).farge;
+  return g.bilde_sti ? `<img class="gav ${cls || ''}" style="${st}" src="${esc(pubUrl(g.bilde_sti))}" alt="" loading="lazy">`
+    : `<span class="gav ${cls || ''}" style="${st};${c ? 'background:' + esc(c) : ''}">${esc(initial(g.navn))}</span>`;
+}
+async function squareBlob(file, size) {
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const side = Math.min(bmp.width, bmp.height), cv = document.createElement('canvas'); cv.width = cv.height = size;
+  cv.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
+  return new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('Kunne ikke behandle bildet')), 'image/jpeg', 0.85));
+}
+async function setGuestPhoto(id, file) {
+  const g = guests.find(x => x.id === id); if (!g || !file) return;
+  try {
+    toast('Laster opp bilde …');
+    const blob = await squareBlob(file, 480), sti = `${boardId}/gjester/${uid()}.jpg`;
+    const up = await sb.storage.from(BUCKET).upload(sti, blob, { contentType: 'image/jpeg' });
+    if (fail(up.error, 'kunne ikke laste opp bildet')) return;
+    const old = g.bilde_sti;
+    const { error } = await sb.from('oppg_gjester').update({ bilde_sti: sti }).eq('id', id);
+    if (fail(error, 'kunne ikke lagre bildet')) { await sb.storage.from(BUCKET).remove([sti]); return; }
+    g.bilde_sti = sti; if (old) await sb.storage.from(BUCKET).remove([old]);
+    toast('Bilde lagret'); renderGuests(); editGuest(id);
+  } catch (e) { console.error(e); toast('Feil: kunne ikke lese bildet'); }
+}
+async function removeGuestPhoto(id) {
+  const g = guests.find(x => x.id === id); if (!g || !g.bilde_sti) return;
+  const old = g.bilde_sti;
+  const { error } = await sb.from('oppg_gjester').update({ bilde_sti: null }).eq('id', id);
+  if (fail(error, 'kunne ikke fjerne bildet')) return;
+  g.bilde_sti = null; await sb.storage.from(BUCKET).remove([old]); renderGuests(); editGuest(id);
+}
 const grp = id => groups.find(x => x.id === id);
 const gTag = g => { const x = grp(g.gruppe_id); return x ? `<span class="gtag" style="background:${esc(x.farge)}">${esc(x.navn)}</span>` : ''; };
 const seatsUsed = tid => guests.filter(g => g.bord_id === tid && g.status !== 'kommer_ikke').reduce((n, g) => n + g.antall, 0);
@@ -680,7 +718,7 @@ function openGuests() { guestsOpen = true; $('#guests').classList.remove('hidden
 function closeGuests() { guestsOpen = false; const el = $('#guests'); el.classList.add('hidden'); el.innerHTML = ''; }
 function gGuestHtml(g) {
   const st = GST[g.status];
-  return `<div class="grw" data-g="${g.id}"><span class="gdot" style="background:${st.c}" title="${st.n}"></span>
+  return `<div class="grw" data-g="${g.id}" title="${st.n}">${gAv(g)}
     <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}</div>
     <button class="gbtn yes ${g.status === 'kommer' ? 'sel' : ''}" data-gs="kommer" data-id="${g.id}" aria-label="Kommer">✔</button>
     <button class="gbtn no ${g.status === 'kommer_ikke' ? 'sel' : ''}" data-gs="kommer_ikke" data-id="${g.id}" aria-label="Kommer ikke">✖</button></div>`;
@@ -711,7 +749,7 @@ function renderGuests() {
   } else {
     const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
-    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}</div>`;
+    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}</div></div>`;
     body = `${sum}<div class="gunp"><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
       <div class="gtables">${tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div>
@@ -757,13 +795,20 @@ async function saveGuest(id, patch) {
 }
 function editGuest(id) {
   const g = guests.find(x => x.id === id); if (!g) return;
-  const m = showModal(`<div class="field"><input class="titlein" id="eN" value="${esc(g.navn)}" maxlength="100" aria-label="Navn"></div>
+  const m = showModal(`<div class="gphoto"><span id="eAv">${gAv(g, 'lg')}</span><div class="btns"><button type="button" class="btn" id="eCam">📷 Ta bilde</button><button type="button" class="btn" id="ePick">🖼 Velg bilde</button>${g.bilde_sti ? '<button type="button" class="btn danger" id="eRm">Fjern</button>' : ''}</div>
+    <input type="file" id="eCamIn" accept="image/*" capture="user" class="hidden"><input type="file" id="ePickIn" accept="image/*" class="hidden"></div>
+    <div class="field"><input class="titlein" id="eN" value="${esc(g.navn)}" maxlength="100" aria-label="Navn"></div>
     <div class="two"><div class="field"><label>Antall personer</label><input id="eA" type="number" min="1" max="50" value="${g.antall}"></div>
     <div class="field"><label>Svar</label><select id="eS">${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${g.status === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select></div></div>
     <div class="field"><label>Gruppe</label><select id="eG"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${g.gruppe_id === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}<option value="__new">+ Ny gruppe …</option></select></div>
     <div class="field"><label>Bord</label><select id="eB"><option value="">Ikke plassert</option>${tables.map(t => `<option value="${t.id}" ${g.bord_id === t.id ? 'selected' : ''}>${esc(t.navn)} (${seatsUsed(t.id)}/${t.plasser})</option>`).join('')}</select></div>
     <div class="field"><label>Notat (allergier, kontakt, …)</label><textarea id="eT" maxlength="500">${esc(g.notat)}</textarea></div>
     <div class="bar"><button class="btn danger" id="eDel">Slett</button><button class="btn primary" id="eOk">Ferdig</button></div>`);
+  $('#eCam', m).onclick = () => $('#eCamIn', m).click();
+  $('#ePick', m).onclick = () => $('#ePickIn', m).click();
+  [$('#eCamIn', m), $('#ePickIn', m)].forEach(inp => inp.onchange = () => { const f = inp.files[0]; inp.value = ''; if (f) setGuestPhoto(id, f); });
+  if ($('#eRm', m)) $('#eRm', m).onclick = () => removeGuestPhoto(id);
+  if (g.bilde_sti) $('#eAv img', m).onclick = () => viewPhoto(pubUrl(g.bilde_sti));
   $('#eN', m).onchange = e => { const v = e.target.value.trim(); if (v) saveGuest(id, { navn: v }); else e.target.value = g.navn; };
   $('#eA', m).onchange = e => saveGuest(id, { antall: Math.min(50, Math.max(1, +e.target.value || 1)) });
   $('#eS', m).onchange = e => { saveGuest(id, { status: e.target.value }); if (e.target.value === 'kommer_ikke') $('#eB', m).value = ''; };
@@ -777,6 +822,7 @@ function editGuest(id) {
   $('#eDel', m).onclick = async () => {
     if (!confirm(`Slette «${g.navn}»?`)) return;
     const { error } = await sb.from('oppg_gjester').delete().eq('id', id); if (fail(error, 'kunne ikke slette')) return;
+    if (g.bilde_sti) sb.storage.from(BUCKET).remove([g.bilde_sti]);
     guests = guests.filter(x => x.id !== id); closeModal(); renderGuests();
   };
 }
