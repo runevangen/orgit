@@ -264,17 +264,16 @@ function showCreateUser(first) {
     <form id="nyForm"><div class="field"><label>Navn</label><input id="nNavn" required maxlength="30"></div>
     <div class="field"><label>PIN-kode (minst 4 tegn)</label><input id="nPin" type="password" inputmode="numeric" minlength="4" required></div>
     <div class="field"><label>Farge</label><div class="colors">${COLORS.map(c => `<button type="button" data-c="${c}" style="background:${c}" class="${c === farge ? 'sel' : ''}"></button>`).join('')}</div></div>
-    ${first ? '' : `<div class="field"><label>Godkjenning: en eksisterende bruker</label><select id="nAdm">${users.map(u => `<option>${esc(u.navn)}</option>`).join('')}</select>
-      <input id="nAdmPin" type="password" inputmode="numeric" placeholder="Den brukerens PIN" required style="margin-top:6px"></div>`}
+    <label class="remember"><input type="checkbox" id="nRemember" ${store.get('oppg_husk') !== '0' ? 'checked' : ''}> Husk meg på denne enheten</label>
     <div class="err" id="err"></div><button class="btn primary" style="width:100%">${first ? 'Opprett og start' : 'Opprett bruker'}</button>
     ${first ? '' : '<button type="button" class="btn" id="nBack" style="width:100%;margin-top:8px">Tilbake</button>'}</form></div>`;
   if (!first) $('#nBack', box).onclick = showLogin;
   box.querySelectorAll('.colors button').forEach(b => b.onclick = () => { farge = b.dataset.c; box.querySelectorAll('.colors button').forEach(x => x.classList.toggle('sel', x === b)); });
   $('#nyForm', box).onsubmit = async e => {
     e.preventDefault();
-    const { data, error } = await sb.rpc('oppg_ny_bruker', { p_navn: $('#nNavn', box).value, p_pin: $('#nPin', box).value, p_farge: farge, ...(first ? {} : { p_admin_navn: $('#nAdm', box).value, p_admin_pin: $('#nAdmPin', box).value }) });
-    if (error) { $('#err', box).textContent = error.message.includes('duplicate') ? 'Navnet er tatt' : (error.message.includes('Ikke tillatt') ? 'Feil PIN hos brukeren som godkjenner' : error.message); return; }
-    me = data[0]; saveMe(true); box.classList.add('hidden'); start();
+    const { data, error } = await sb.rpc('oppg_ny_bruker', { p_navn: $('#nNavn', box).value, p_pin: $('#nPin', box).value, p_farge: farge });
+    if (error) { $('#err', box).textContent = error.message.includes('duplicate') ? 'Navnet er tatt' : error.message; return; }
+    me = data[0]; saveMe($('#nRemember', box).checked); box.classList.add('hidden'); start();
   };
 }
 function addPerson() {
