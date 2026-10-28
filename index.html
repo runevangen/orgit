@@ -1076,7 +1076,13 @@ function planParts(t) {
   };
   const centre = `<b>${esc(t.navn)}</b>${used}/${t.plasser}`;
   let W, H, inner = '';
-  if (t.form === 'rektangel') {
+  if (t.form === 'rektangel' && t.retning === 'staende') {
+    const left = Math.ceil(n / 2), right = n - left, per = 54;
+    W = 192; H = Math.max(160, Math.max(left, right) * per + 24);
+    inner = `<div class="gcenter ${over ? 'over' : ''}" style="left:52px;top:12px;width:88px;height:${H - 24}px;border-radius:12px">${centre}</div>`;
+    for (let j = 0; j < left; j++) inner += seat(j, 30, H / 2 + (j - (left - 1) / 2) * per);
+    for (let j = 0; j < right; j++) inner += seat(left + j, W - 30, H / 2 + (j - (right - 1) / 2) * per);
+  } else if (t.form === 'rektangel') {
     const top = Math.ceil(n / 2), bot = n - top, per = 54;
     W = Math.max(160, Math.max(top, bot) * per + 24); H = 170;
     inner = `<div class="gcenter ${over ? 'over' : ''}" style="left:12px;top:63px;height:44px;border-radius:12px;width:${W - 24}px">${centre}</div>`;
@@ -1143,6 +1149,7 @@ function elementMenu(id) {
   const patch = async p => { const { error } = await sb.from('oppg_elementer').update(p).eq('id', id); if (!fail(error)) { Object.assign(e, p); renderGuests(); } };
   sheet(e.navn, [
     { label: 'Gi nytt navn', fn: () => { const v = prompt('Nytt navn:', e.navn); if (v && v.trim()) patch({ navn: v.trim() }); } },
+    { label: e.h > e.w ? '↔ Snu: la elementet ligge' : '↕ Snu: la elementet stå', fn: () => patch({ w: e.h, h: e.w }) },
     { label: `Endre størrelse (${Math.round(e.w)} × ${Math.round(e.h)})`, fn: () => { const v = prompt('Bredde × høyde (for eksempel 240x120):', `${Math.round(e.w)}x${Math.round(e.h)}`); const m = v && v.match(/(\d+)\s*[x×,]\s*(\d+)/i); if (m) patch({ w: Math.min(1200, Math.max(40, +m[1])), h: Math.min(1200, Math.max(30, +m[2])) }); } },
     { label: 'Slett element', danger: true, fn: async () => { const { error } = await sb.from('oppg_elementer').delete().eq('id', id); if (!fail(error)) { elements = elements.filter(x => x.id !== id); renderGuests(); } } }
   ]);
@@ -1462,7 +1469,7 @@ function groupMenu(id) {
     } }
   ]);
 }
-const tCap = t => { const ty = tableTypes.find(x => x.id === t.type_id); return `<small>${esc(ty ? ty.navn : t.plasser + ' pl.')}${t.form === 'rektangel' ? ' · rektangulært' : ''}</small>`; };
+const tCap = t => { const ty = tableTypes.find(x => x.id === t.type_id); return `<small>${esc(ty ? ty.navn : t.plasser + ' pl.')}${t.form === 'rektangel' ? ' · rektangulært' + (t.retning === 'staende' ? ', stående' : '') : ''}</small>`; };
 const FORMS = { rund: 'Rundt', rektangel: 'Rektangulært' };
 const DEFAULT_TYPES = [['4-personsbord', 4, 'rektangel'], ['6-personsbord', 6, 'rund'], ['8-personsbord', 8, 'rund'], ['10-personsbord', 10, 'rund']];
 function addTable() {
@@ -1539,6 +1546,7 @@ function tableMenu(id) {
   opts.push(
     { label: 'Gi nytt navn', fn: async () => { const v = prompt('Nytt navn:', t.navn); if (v && v.trim()) patch({ navn: v.trim() }); } },
     { label: `Endre antall plasser (${t.plasser})`, fn: async () => { const v = parseInt(prompt('Antall plasser:', t.plasser), 10); if (v > 0) patch({ plasser: Math.min(100, v), type_id: null }); } },
+    ...(t.form === 'rektangel' ? [{ label: t.retning === 'staende' ? '↔ Snu: la bordet ligge' : '↕ Snu: la bordet stå', fn: () => patch({ retning: t.retning === 'staende' ? 'liggende' : 'staende' }) }] : []),
     { label: t.form === 'rektangel' ? 'Gjør bordet rundt' : 'Gjør bordet rektangulært', fn: () => patch({ form: t.form === 'rektangel' ? 'rund' : 'rektangel', type_id: null }) },
     { label: 'Slett bord (gjestene blir ikke plassert)', danger: true, fn: async () => {
       if (!confirm(`Slette «${t.navn}»?`)) return;
@@ -1576,6 +1584,7 @@ async function buildPlanCanvas(o) {
     const list = seated.filter(g => g.bord_id === t.id).sort(byGrp), slots = [];
     list.forEach(g => { for (let i = 0; i < g.antall; i++) slots.push({ g, i }); });
     const n = Math.max(t.plasser, slots.length);
+    if (t.form === 'rektangel' && t.retning === 'staende') { const left = Math.ceil(n / 2), right = n - left, per = 62; return { t, list, slots, n, left, right, per, vert: true, w: 380, h: Math.max(300, Math.max(left, right) * per + 50) }; }
     if (t.form === 'rektangel') { const top = Math.ceil(n / 2), bot = n - top, per = o.full ? 110 : 88; return { t, list, slots, n, top, bot, per, w: Math.max(300, Math.max(top, bot) * per + 40), h: 312 }; }
     const R = Math.max(74, n * 62 / (2 * Math.PI)); return { t, list, slots, n, R, w: Math.ceil(2 * R + 250), h: Math.ceil(2 * R + 140) };
   });
@@ -1640,7 +1649,12 @@ async function buildPlanCanvas(o) {
     ctx.lineWidth = 3; ctx.strokeStyle = over ? '#d92d20' : '#c3c8d4'; ctx.fillStyle = '#f4f5f8';
     const centre = (cx, cy) => { ctx.textAlign = 'center'; ctx.fillStyle = '#1b1f29'; ctx.font = `700 17px ${FONT}`; ctx.fillText(wrapText(ctx, t.navn, 120, 1)[0], cx, cy - 2); ctx.fillStyle = over ? '#d92d20' : '#667085'; ctx.font = `14px ${FONT}`; ctx.fillText(`${c.slots.length}/${t.plasser}`, cx, cy + 18); };
     const seat = (k, cx, cy, mode, dx) => { const sl = c.slots[k]; if (!sl) { empty(cx, cy, k >= t.plasser); return; } avatar(cx, cy, sl.g, sl.i > 0); label(sl.g, sl.i, cx, cy, mode, dx); };
-    if (t.form === 'rektangel') {
+    if (c.vert) {
+      const bx = ox + c.w / 2 - 50, by = oy + 20; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, 100, c.h - 40, 14) : ctx.rect(bx, by, 100, c.h - 40); ctx.fillStyle = '#f4f5f8'; ctx.fill(); ctx.stroke();
+      centre(ox + c.w / 2, oy + c.h / 2 - 4);
+      for (let j = 0; j < c.left; j++) seat(j, ox + 74, oy + c.h / 2 + (j - (c.left - 1) / 2) * c.per, 'side', -1);
+      for (let j = 0; j < c.right; j++) seat(c.left + j, ox + c.w - 74, oy + c.h / 2 + (j - (c.right - 1) / 2) * c.per, 'side', 1);
+    } else if (t.form === 'rektangel') {
       const bx = ox + 20, bw = c.w - 40; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, oy + 126, bw, 56, 14) : ctx.rect(bx, oy + 126, bw, 56); ctx.fillStyle = '#f4f5f8'; ctx.fill(); ctx.stroke();
       centre(ox + c.w / 2, oy + 150);
       for (let j = 0; j < c.top; j++) seat(j, ox + c.w / 2 + (j - (c.top - 1) / 2) * c.per, oy + 50, 'below', 0);
