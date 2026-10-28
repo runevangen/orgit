@@ -351,9 +351,9 @@ function avatar(u, size) {
   const st = size ? `width:${size}px;height:${size}px;font-size:${Math.round(size*.42)}px;` : '';
   return `<span class="avatar" style="background:${esc(u.farge)};${st}" title="${esc(u.navn)}">${esc(initial(u.navn))}</span>`;
 }
-function toast(msg) {
+function toast(msg, ms) {
   const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden');
-  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 2800);
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), ms || 2800);
 }
 function fail(error, what) { if (error) { console.error(error); toast(`Feil: ${what || error.message}`); return true; } return false; }
 const sess = { get: k => { try { return sessionStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} }, del: k => { try { sessionStorage.removeItem(k); } catch {} } };
@@ -511,11 +511,21 @@ async function loadFiles() {
   const { data, error } = await sb.from('oppg_vedlegg').select('*').eq('tavle_id', boardId).order('opprettet');
   if (!error) files = data || [];
 }
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image(); let url = null;
+    if (typeof src === 'string') img.crossOrigin = 'anonymous'; else url = URL.createObjectURL(src);
+    const done = () => { if (url) setTimeout(() => URL.revokeObjectURL(url), 30000); };
+    img.onload = () => { done(); resolve(img); };
+    img.onerror = () => { done(); reject(new Error('Kunne ikke lese bildet')); };
+    img.src = url || src;
+  });
+}
 async function shrink(file) {
-  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-  const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
-  cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+  const img = await loadImage(file), w = img.naturalWidth, h = img.naturalHeight;
+  const k = Math.min(1, 1600 / Math.max(w, h));
+  const cv = document.createElement('canvas'); cv.width = Math.round(w * k); cv.height = Math.round(h * k);
+  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
   return new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('Kunne ikke behandle bildet')), 'image/jpeg', 0.82));
 }
 async function addPhotos(cardId, list) {
@@ -797,26 +807,78 @@ function gAv(g, cls) {
   return g.bilde_sti ? `<img class="gav ${cls || ''}" style="${st}" src="${esc(pubUrl(g.bilde_sti))}" alt="" loading="lazy">`
     : `<span class="gav ${cls || ''}" style="${st};${c ? 'background:' + esc(c) : ''}">${esc(initial(g.navn))}</span>`;
 }
-async function squareBlob(file, size) {
-  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  const side = Math.min(bmp.width, bmp.height), cv = document.createElement('canvas'); cv.width = cv.height = size;
-  cv.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
-  return new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('Kunne ikke behandle bildet')), 'image/jpeg', 0.85));
+function photoEditor(src) {
+  return new Promise(async resolve => {
+    let img; try { img = await loadImage(src); } catch (e) { toast('Kunne ikke lese bildet. Prøv et annet bilde (JPEG eller PNG).', 7000); return resolve(null); }
+    const P = 300, OUT = 480, st = { ox: 0, oy: 0, zoom: 1, rot: 0, br: 0, ct: 100 };
+    const m = showModal(`<h2>Juster bilde</h2>
+      <div id="peBox" style="position:relative;width:100%;max-width:320px;aspect-ratio:1;margin:0 auto 6px;touch-action:none;overflow:hidden;border-radius:12px;background:#e4e7ee;cursor:grab"><canvas id="peCv" width="${P}" height="${P}" style="width:100%;height:100%;display:block"></canvas><div style="position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 999px rgba(0,0,0,.5);border:2px solid #fff;pointer-events:none"></div></div>
+      <p style="color:var(--muted);font-size:12px;text-align:center;margin:0 0 10px">Dra for å flytte. Klyp eller bruk glidebryteren for å zoome. Sirkelen viser utsnittet.</p>
+      <div class="field"><label>Zoom <span id="peZv">100</span> %</label><input id="peZ" type="range" min="100" max="400" value="100"></div>
+      <div class="field"><label>Vinkel <span id="peRv">0</span>°</label><div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn" id="peL" aria-label="Roter 90 grader mot venstre">⟲ 90°</button><input id="peR" type="range" min="-180" max="180" value="0" style="flex:1"><button type="button" class="btn" id="peRt" aria-label="Roter 90 grader mot høyre">⟳ 90°</button></div></div>
+      <div class="two"><div class="field"><label>Lysstyrke <span id="peBv">0</span></label><input id="peB" type="range" min="-60" max="60" value="0"></div><div class="field"><label>Kontrast <span id="peCv2">100</span> %</label><input id="peC" type="range" min="50" max="180" value="100"></div></div>
+      <div class="bar"><button type="button" class="btn" id="peX">Avbryt</button><button type="button" class="btn" id="peReset">Nullstill</button><button type="button" class="btn primary" id="peOk">Bruk bilde</button></div>`, () => resolve(null));
+    const cv = $('#peCv', m), box = $('#peBox', m);
+    const draw = (c, S, k) => {
+      const x = c.getContext('2d'), base = S / Math.min(img.naturalWidth, img.naturalHeight);
+      x.save(); x.fillStyle = '#e4e7ee'; x.fillRect(0, 0, S, S);
+      x.translate(S / 2 + st.ox * k, S / 2 + st.oy * k); x.rotate(st.rot * Math.PI / 180); const sc = base * st.zoom; x.scale(sc, sc);
+      x.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2); x.restore();
+      if (st.br || st.ct !== 100) {
+        const d = x.getImageData(0, 0, S, S), a = d.data, f = st.ct / 100, o = st.br * 2.55;
+        for (let i = 0; i < a.length; i += 4) { a[i] = (a[i] - 128) * f + 128 + o; a[i + 1] = (a[i + 1] - 128) * f + 128 + o; a[i + 2] = (a[i + 2] - 128) * f + 128 + o; }
+        x.putImageData(d, 0, 0);
+      }
+    };
+    let raf = 0; const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => draw(cv, P, 1)); };
+    const sync = () => { $('#peZ', m).value = Math.round(st.zoom * 100); $('#peZv', m).textContent = Math.round(st.zoom * 100); $('#peR', m).value = st.rot; $('#peRv', m).textContent = st.rot; $('#peB', m).value = st.br; $('#peBv', m).textContent = st.br; $('#peC', m).value = st.ct; $('#peCv2', m).textContent = st.ct; redraw(); };
+    const clampZoom = z => Math.min(4, Math.max(1, z));
+    const wrap = d => { d = ((d + 180) % 360 + 360) % 360 - 180; return d === -180 ? 180 : d; };
+    $('#peZ', m).oninput = e => { st.zoom = clampZoom(+e.target.value / 100); sync(); };
+    $('#peR', m).oninput = e => { st.rot = +e.target.value; sync(); };
+    $('#peL', m).onclick = () => { st.rot = wrap(st.rot - 90); sync(); };
+    $('#peRt', m).onclick = () => { st.rot = wrap(st.rot + 90); sync(); };
+    $('#peB', m).oninput = e => { st.br = +e.target.value; sync(); };
+    $('#peC', m).oninput = e => { st.ct = +e.target.value; sync(); };
+    $('#peReset', m).onclick = () => { Object.assign(st, { ox: 0, oy: 0, zoom: 1, rot: 0, br: 0, ct: 100 }); sync(); };
+    // dra og klyp
+    const ptrs = new Map(); let pinch = null;
+    const scaleOf = () => P / box.getBoundingClientRect().width;
+    box.addEventListener('pointerdown', e => { box.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: st.zoom }; } });
+    box.addEventListener('pointermove', e => {
+      const p0 = ptrs.get(e.pointerId); if (!p0) return;
+      if (ptrs.size === 1) { const k = scaleOf(); st.ox += (e.clientX - p0.x) * k; st.oy += (e.clientY - p0.y) * k; }
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptrs.size === 2 && pinch) { const [a, b] = [...ptrs.values()]; st.zoom = clampZoom(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d); }
+      sync();
+    });
+    const end = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; };
+    box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+    box.addEventListener('wheel', e => { e.preventDefault(); st.zoom = clampZoom(st.zoom - e.deltaY * .002); sync(); }, { passive: false });
+    $('#peX', m).onclick = () => { closeModal(); resolve(null); };
+    $('#peOk', m).onclick = () => {
+      const o = document.createElement('canvas'); o.width = o.height = OUT; draw(o, OUT, OUT / P);
+      o.toBlob(b => { closeModal(); resolve(b); }, 'image/jpeg', 0.88);
+    };
+    sync();
+  });
 }
-async function setGuestPhoto(id, file) {
-  const g = guests.find(x => x.id === id); if (!g || !file) return;
+async function setGuestPhoto(id, src) {
+  const g = guests.find(x => x.id === id); if (!g || !src) return;
+  const blob = await photoEditor(src); if (!blob) return editGuest(id);
   try {
-    toast('Laster opp bilde …');
-    const blob = await squareBlob(file, 480), sti = `${boardId}/gjester/${uid()}.jpg`;
+    toast('Laster opp bilde …', 15000);
+    const sti = `${boardId}/gjester/${uid()}.jpg`;
     const up = await sb.storage.from(BUCKET).upload(sti, blob, { contentType: 'image/jpeg' });
-    if (fail(up.error, 'kunne ikke laste opp bildet')) return;
+    if (up.error) { console.error(up.error); toast('Feil: kunne ikke laste opp bildet (' + (up.error.message || 'ukjent feil') + ')', 9000); return editGuest(id); }
     const old = g.bilde_sti;
     const { error } = await sb.from('oppg_gjester').update({ bilde_sti: sti }).eq('id', id);
-    if (fail(error, 'kunne ikke lagre bildet')) { await sb.storage.from(BUCKET).remove([sti]); return; }
+    if (error) { console.error(error); await sb.storage.from(BUCKET).remove([sti]); toast('Feil: kunne ikke lagre bildet (' + error.message + ')', 9000); return editGuest(id); }
     g.bilde_sti = sti; if (old) await sb.storage.from(BUCKET).remove([old]);
     toast('Bilde lagret'); renderGuests(); editGuest(id);
-  } catch (e) { console.error(e); toast('Feil: kunne ikke lese bildet'); }
+  } catch (e) { console.error(e); toast('Feil: ' + (e && e.message ? e.message : 'kunne ikke laste opp bildet'), 9000); editGuest(id); }
 }
+const adjustGuestPhoto = id => { const g = guests.find(x => x.id === id); if (g && g.bilde_sti) setGuestPhoto(id, pubUrl(g.bilde_sti)); };
 async function removeGuestPhoto(id) {
   const g = guests.find(x => x.id === id); if (!g || !g.bilde_sti) return;
   const old = g.bilde_sti;
@@ -940,7 +1002,7 @@ async function saveGuest(id, patch) {
 }
 function editGuest(id) {
   const g = guests.find(x => x.id === id); if (!g) return;
-  const m = showModal(`<div class="gphoto"><span id="eAv">${gAv(g, 'lg')}</span><div class="btns"><button type="button" class="btn" id="eCam">📷 Ta bilde</button><button type="button" class="btn" id="ePick">🖼 Velg bilde</button>${g.bilde_sti ? '<button type="button" class="btn danger" id="eRm">Fjern</button>' : ''}</div>
+  const m = showModal(`<div class="gphoto"><span id="eAv">${gAv(g, 'lg')}</span><div class="btns"><button type="button" class="btn" id="eCam">📷 Ta bilde</button><button type="button" class="btn" id="ePick">🖼 Velg bilde</button>${g.bilde_sti ? '<button type="button" class="btn" id="eAdj">Juster</button><button type="button" class="btn danger" id="eRm">Fjern</button>' : ''}</div>
     <input type="file" id="eCamIn" accept="image/*" capture="user" class="hidden"><input type="file" id="ePickIn" accept="image/*" class="hidden"></div>
     <div class="field"><input class="titlein" id="eN" value="${esc(g.navn)}" maxlength="100" aria-label="Navn"></div>
     <div class="two"><div class="field"><label>Antall personer</label><input id="eA" type="number" min="1" max="50" value="${g.antall}"></div>
@@ -956,6 +1018,7 @@ function editGuest(id) {
   $('#ePick', m).onclick = () => $('#ePickIn', m).click();
   [$('#eCamIn', m), $('#ePickIn', m)].forEach(inp => inp.onchange = () => { const f = inp.files[0]; inp.value = ''; if (f) setGuestPhoto(id, f); });
   if ($('#eRm', m)) $('#eRm', m).onclick = () => removeGuestPhoto(id);
+  if ($('#eAdj', m)) $('#eAdj', m).onclick = () => adjustGuestPhoto(id);
   if (g.bilde_sti) $('#eAv img', m).onclick = () => viewPhoto(pubUrl(g.bilde_sti));
   $('#eN', m).onchange = e => { const v = e.target.value.trim(); if (v) saveGuest(id, { navn: v }); else e.target.value = g.navn; };
   $('#eA', m).onchange = e => saveGuest(id, { antall: Math.min(50, Math.max(1, +e.target.value || 1)) });
