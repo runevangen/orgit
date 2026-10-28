@@ -1200,6 +1200,15 @@ const TOUR_GUESTS = [
   { sel: '.gname', title: 'Alt om gjesten', text: 'Trykk på navnet for bilde, antall, gruppe, relasjoner (skal eller bør ikke sitte sammen) og notater.', missing: 'Trykk på en gjest for bilde, antall, gruppe, relasjoner og notater.' },
   { sel: '.gfil', title: 'Søk og filter', text: 'Søk på navn og filtrer på svar og gruppe.' }
 ];
+const TOUR_INVITE = [
+  { sel: '#gInv', title: '1. Fyll ut invitasjonen', text: 'Trykk her og skriv tittel, dato, klokkeslett, sted, svarfrist og en hilsen. Dette ser gjestene øverst på svarsiden og i meldingen du sender.', before: toGuests },
+  { sel: '#gLinks', title: '2. Hent svarlenkene', text: 'Trykk her og skriv inn PIN-koden din. Du får en personlig lenke til hver gjest. Lenkene kan ikke gjettes, så send hver gjest bare sin egen.' },
+  { title: '3. Del lenken', text: 'Trykk Del for å sende en ferdig melding på SMS, Messenger eller e-post, med dato, sted og lenke. Kopier alle gir en liste med navn og lenker du kan lime inn.' },
+  { title: '4. Dette ser gjesten', text: 'Gjesten åpner lenken uten å logge inn, ser invitasjonen og velger Jeg kommer, Kanskje eller Kommer ikke. De kan velge antall personer og skrive en melding, for eksempel om allergier. Etterpå kan de legge arrangementet i kalenderen.' },
+  { sel: '.gsum', title: '5. Svarene kommer inn', text: 'Når en gjest svarer, oppdateres tallene her og gjesten får riktig status automatisk. Gjester som sier at de ikke kommer, tas av bordet.' },
+  { sel: '[title="Svarte selv"]', title: 'Svarte selv', text: 'Gjester som har svart via lenken har et ✉ ved navnet. Trykk på navnet for å lese meldingen deres.', missing: 'Gjester som har svart via lenken får et ✉ ved navnet. Trykk på navnet for å lese meldingen deres.' },
+  { sel: '[data-gtab=bord]', title: 'Så: bordplassering', text: 'Når svarene er inne, setter du de som kommer ved bord under Bordplassering.' }
+];
 const TOUR_TABLES = [
   { sel: '.gunp', title: 'Ikke plassert', text: 'Gjester som ennå ikke har bord. Dra en gjest herfra til et bord, eller trykk på en ledig plass.', before: toTables('plan') },
   { sel: '#gNewTable', title: 'Nytt bord', text: 'Velg bordtype og hvor mange bord du vil legge til.' },
@@ -1260,6 +1269,7 @@ function guideMenu() {
   sheet('Guide: slik bruker du appen', [
     { label: '📋 Tavlen og oppgavene', fn: () => startTour(TOUR_BOARD) },
     { label: '👥 Gjester og invitasjon', fn: () => startTour(TOUR_GUESTS) },
+    { label: '✉ Invitasjon og svarlenker', fn: () => startTour(TOUR_INVITE) },
     { label: '🪑 Bord og plassering', fn: () => startTour(TOUR_TABLES) }
   ]);
 }
