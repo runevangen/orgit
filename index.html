@@ -98,8 +98,11 @@ body.dragging #board{scroll-snap-type:none}
 .sheet button.opt.cur{font-weight:700;color:var(--accent)}
 
 /* Søk, kolonnefarge, WIP, aktivitet */
-.searchbar{display:flex;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
+.searchbar{display:flex;flex-direction:column;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line)}
+.searchbar .srow{display:flex;gap:8px}
 .searchbar input{flex:1}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.filters select{flex:1;min-width:150px;width:auto;padding:7px 8px}
 .col{border-top:4px solid var(--colc,transparent)}
 .col-h .count.full{color:var(--danger);font-weight:700}
 .col.wipfull{outline:2px solid var(--danger);outline-offset:-2px}
@@ -146,7 +149,14 @@ body.dragging #board{scroll-snap-type:none}
     <button id="meBtn" class="btn icon" title="Meg"></button>
     <button id="logoutBtn" class="btn icon" title="Logg ut" aria-label="Logg ut">⎋</button>
   </header>
-  <div id="searchBar" class="searchbar hidden"><input id="searchIn" type="search" placeholder="Søk i tittel, beskrivelse og sjekkliste …" autocomplete="off"><button id="searchClear" class="btn">Lukk</button></div>
+  <div id="searchBar" class="searchbar hidden">
+    <div class="srow"><input id="searchIn" type="search" placeholder="Søk i tittel, beskrivelse og sjekkliste …" autocomplete="off"><button id="searchClear" class="btn">Lukk</button></div>
+    <div class="filters">
+      <select id="fLabel" aria-label="Etikett"></select>
+      <select id="fUser" aria-label="Ansvarlig"></select>
+      <select id="fDue" aria-label="Frist"><option value="">Alle frister</option><option value="over">Forfalt</option><option value="uke">Neste 7 dager</option><option value="ingen">Uten frist</option></select>
+      <button id="fReset" class="btn" type="button">Nullstill</button>
+    </div></div>
   <div id="board"></div>
 </div>
 <div id="modalRoot"></div>
@@ -174,7 +184,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let query = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let query = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -276,7 +286,7 @@ function showCreateUser(first) {
     me = data[0]; saveMe($('#nRemember', box).checked); box.classList.add('hidden'); start();
   };
 }
-function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; query = ''; activity = []; files = []; $('#searchBar').classList.add('hidden'); $('#searchIn').value = ''; if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
+function logout() { store.del('oppg_meg'); sess.del('oppg_meg'); me = null; resetFilters(); activity = []; files = []; $('#searchBar').classList.add('hidden'); if (channel) { sb.removeChannel(channel); channel = null; } showLogin(); }
 
 /* ---------- Data ---------- */
 async function loadUsers() { const { data, error } = await sb.rpc('oppg_brukere_liste'); if (!fail(error)) users = data || []; }
@@ -325,7 +335,7 @@ function subscribe() {
 async function start() {
   $('#app').classList.remove('hidden');
   $('#meBtn').innerHTML = avatar(me, 30);
-  await loadUsers(); await loadBoards(); await loadBoard(); subscribe();
+  await loadUsers(); fillFilters(); await loadBoards(); await loadBoard(); subscribe();
 }
 
 /* ---------- Bilder ---------- */
@@ -403,10 +413,24 @@ function showActivity() {
   const m = showModal(`<h2>Aktivitet</h2>${activity.length ? activity.map(a => `<div class="act ${a.type}">${esc(actText(a))}<small>${esc(fmtTid(a.opprettet))}</small></div>`).join('') : '<p class="empty">Ingen aktivitet ennå.</p>'}<div class="bar"><span></span><button class="btn primary" id="actOk">Lukk</button></div>`);
   $('#actOk', m).onclick = closeModal;
 }
-function matches(c) {
-  if (!query) return true;
-  const q = query.toLowerCase(), cl = Array.isArray(c.sjekkliste) ? c.sjekkliste.map(x => x.t).join(' ') : '';
-  return (c.tittel + ' ' + (c.beskrivelse || '') + ' ' + cl).toLowerCase().includes(q);
+const filtering = () => !!(query || fLabel || fUser || fDue);
+function fillFilters() {
+  $('#fLabel').innerHTML = '<option value="">Alle etiketter</option><option value="none">Uten etikett</option>' + LABELS.map(l => `<option value="${l.k}">${esc(l.n)}</option>`).join('');
+  $('#fUser').innerHTML = '<option value="">Alle ansvarlige</option><option value="none">Ingen ansvarlig</option>' + users.map(u => `<option value="${u.id}">${esc(u.navn)}</option>`).join('');
+  $('#fLabel').value = fLabel; $('#fUser').value = fUser; $('#fDue').value = fDue;
+}
+function resetFilters() { query = fLabel = fUser = fDue = ''; $('#searchIn').value = ''; fillFilters(); }
+function matches(c, isLast, today) {
+  if (query) {
+    const q = query.toLowerCase(), cl = Array.isArray(c.sjekkliste) ? c.sjekkliste.map(x => x.t).join(' ') : '';
+    if (!(c.tittel + ' ' + (c.beskrivelse || '') + ' ' + cl).toLowerCase().includes(q)) return false;
+  }
+  if (fLabel && (fLabel === 'none' ? c.etikett : c.etikett !== fLabel)) return false;
+  if (fUser && (fUser === 'none' ? c.ansvarlig : c.ansvarlig !== fUser)) return false;
+  if (fDue === 'ingen' && c.frist) return false;
+  if (fDue === 'over' && !(c.frist && !isLast && c.frist < today)) return false;
+  if (fDue === 'uke' && !(c.frist && c.frist >= today && c.frist <= new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10))) return false;
+  return true;
 }
 
 /* ---------- Visning ---------- */
@@ -414,7 +438,7 @@ function render() {
   const b = boards.find(x => x.id === boardId);
   $('#boardBtn').textContent = (b ? b.navn : 'Tavle') + ' ▾';
   $('#mineBtn').classList.toggle('on', onlyMine);
-  $('#searchBtn').classList.toggle('on', !!query);
+  $('#searchBtn').classList.toggle('on', filtering());
   const scroll = $('#board').scrollLeft;
   const lastCol = cols.length ? cols[cols.length - 1].id : null;
   const today = new Date().toISOString().slice(0, 10);
@@ -422,10 +446,10 @@ function render() {
     let list = cards.filter(c => c.kolonne_id === col.id && !c.arkivert);
     const total = list.length;
     if (onlyMine) list = list.filter(c => c.ansvarlig === me.id);
-    if (query) list = list.filter(matches);
+    if (filtering()) list = list.filter(c => matches(c, col.id === lastCol, today));
     const full = col.wip_grense && total >= col.wip_grense, over = col.wip_grense && total > col.wip_grense;
     return `<section class="col ${over ? 'wipfull' : ''}" data-col="${col.id}" style="${col.farge ? `--colc:${esc(col.farge)}` : ''}">
-      <div class="col-h"><h3>${esc(col.tittel)}</h3><span class="count ${full ? 'full' : ''}" title="${col.wip_grense ? 'Grense: ' + col.wip_grense : ''}">${query || onlyMine ? list.length + '/' + total : total}${col.wip_grense ? ' / ' + col.wip_grense : ''}</span><button data-colmenu="${col.id}" aria-label="Kolonnemeny">⋯</button></div>
+      <div class="col-h"><h3>${esc(col.tittel)}</h3><span class="count ${full ? 'full' : ''}" title="${col.wip_grense ? 'Grense: ' + col.wip_grense : ''}">${filtering() || onlyMine ? list.length + '/' + total : total}${col.wip_grense ? ' / ' + col.wip_grense : ''}</span><button data-colmenu="${col.id}" aria-label="Kolonnemeny">⋯</button></div>
       <div class="cards" data-col="${col.id}">${list.map(c => cardHtml(c, col.id === lastCol, today)).join('')}</div>
       <div class="add"><button data-addopen="${col.id}">+ Legg til kort</button></div></section>`;
   }).join('') + `<div class="newcol"><button id="newColBtn">+ Ny kolonne</button></div>`;
@@ -678,9 +702,13 @@ $('#boardBtn').onclick = boardMenu;
 $('#meBtn').onclick = meMenu;
 $('#themeBtn').onclick = cycleTheme;
 $('#logoutBtn').onclick = () => { if (confirm('Logge ut?')) logout(); };
-$('#searchBtn').onclick = () => { const bar = $('#searchBar'); bar.classList.toggle('hidden'); if (!bar.classList.contains('hidden')) $('#searchIn').focus(); else { query = ''; $('#searchIn').value = ''; render(); } };
+$('#searchBtn').onclick = () => { const bar = $('#searchBar'); bar.classList.toggle('hidden'); if (!bar.classList.contains('hidden')) $('#searchIn').focus(); else { resetFilters(); render(); } };
 $('#searchIn').oninput = e => { query = e.target.value.trim(); render(); };
-$('#searchClear').onclick = () => { query = ''; $('#searchIn').value = ''; $('#searchBar').classList.add('hidden'); render(); };
+$('#searchClear').onclick = () => { resetFilters(); $('#searchBar').classList.add('hidden'); render(); };
+$('#fLabel').onchange = e => { fLabel = e.target.value; render(); };
+$('#fUser').onchange = e => { fUser = e.target.value; render(); };
+$('#fDue').onchange = e => { fDue = e.target.value; render(); };
+$('#fReset').onclick = () => { resetFilters(); render(); };
 function exportBoard(fmt) {
   const b = boards.find(x => x.id === boardId), name = (b ? b.navn : 'tavle').replace(/[^\wæøåÆØÅ-]+/g, '_');
   const rows = cards.map(c => ({ kolonne: ([...cols, ...archCols].find(k => k.id === c.kolonne_id) || {}).tittel || '', arkivert: c.arkivert ? 'ja' : '', tittel: c.tittel, beskrivelse: c.beskrivelse || '', ansvarlig: (userById(c.ansvarlig) || {}).navn || '', frist: c.frist || '', etikett: (LABELS.find(l => l.k === c.etikett) || {}).n || '', sjekkliste: (Array.isArray(c.sjekkliste) ? c.sjekkliste : []).map(x => (x.d ? '[x] ' : '[ ] ') + x.t).join(' | ') }));
