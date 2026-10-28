@@ -169,6 +169,19 @@ body.dragging #board{scroll-snap-type:none}
 .gchip small{color:var(--muted);margin-left:4px}
 .gchip.ghost{opacity:.4}
 .gempty{color:var(--muted);font-size:13px;padding:6px 4px}
+/* Plantegning */
+.gplan{position:relative;margin:4px auto}
+.gcenter{position:absolute;display:grid;place-items:center;text-align:center;background:var(--surface);border:2px solid var(--line);box-shadow:var(--shadow);font-size:12px;color:var(--muted);line-height:1.25;padding:4px}
+.gcenter b{display:block;color:var(--text);font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gcenter.over{border-color:var(--danger);color:var(--danger)}
+.gseat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;background:transparent;border:0;padding:0;font:inherit;color:var(--text);cursor:pointer}
+.gseat .lbl{font-size:10px;line-height:1.15;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-bottom:2px solid var(--gc,transparent);margin-top:2px}
+.gseat .gempt{width:34px;height:34px;border-radius:50%;border:2px dashed var(--line);display:grid;place-items:center;color:var(--muted);font-size:16px}
+.gseat.over .gav,.gseat.over .gempt{border-color:var(--danger)}
+.gav.ghosty{opacity:.5}
+.gplanwrap{overflow-x:auto}
+.gview{display:flex;gap:8px;margin:0 0 8px}
+.gview .btn{flex:1;padding:6px 10px}
 /* Innlogging */
 #login{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:20px;z-index:100;overflow:auto}
 .lbox{width:100%;max-width:380px;background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -235,7 +248,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -750,8 +763,9 @@ function renderGuests() {
     const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
     const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}</div></div>`;
-    body = `${sum}<div class="gunp"><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
-      <div class="gtables">${tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
+    const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Plantegning</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
+    body = `${sum}${viewToggle}<div class="gunp"><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
+      <div class="gtables">${gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div>
       <button class="btn" id="gNewTable" style="width:100%;margin-top:10px">+ Nytt bord</button>`;
   }
@@ -771,7 +785,10 @@ function renderGuests() {
     $('#gNewTable', el).onclick = addTable;
     el.querySelectorAll('[data-tmenu]').forEach(x => x.onclick = () => tableMenu(x.dataset.tmenu));
     el.querySelectorAll('.gchip').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) editGuest(x.dataset.id); });
-    el.querySelectorAll('.gseats').forEach(l => new Sortable(l, {
+    el.querySelectorAll('[data-gview]').forEach(x => x.onclick = () => { gView = x.dataset.gview; renderGuests(); });
+    el.querySelectorAll('[data-seat-g]').forEach(x => x.onclick = () => editGuest(x.dataset.seatG));
+    el.querySelectorAll('[data-seat-e]').forEach(x => x.onclick = () => seatPicker(x.dataset.seatE));
+    if (gView === 'liste') el.querySelectorAll('.gseats').forEach(l => new Sortable(l, {
       group: 'gjest', animation: 150, draggable: '.gchip', ghostClass: 'ghost',
       forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4, delay: 150, delayOnTouchOnly: true, touchStartThreshold: 8,
       scroll: true, bubbleScroll: true, scrollSensitivity: 70, scrollSpeed: 14, emptyInsertThreshold: 24,
@@ -826,6 +843,39 @@ function editGuest(id) {
     guests = guests.filter(x => x.id !== id); closeModal(); renderGuests();
   };
 }
+function planTable(t) {
+  const byGrp = (a, b) => ((grp(a.gruppe_id) || { navn: '\uffff' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '\uffff' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb');
+  const list = guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').sort(byGrp);
+  const slots = []; list.forEach(g => { for (let i = 0; i < g.antall; i++) slots.push({ g, i }); });
+  const used = slots.length, over = used > t.plasser, n = Math.max(t.plasser, used);
+  const seat = (k, x, y) => {
+    const sl = slots[k], cls = k >= t.plasser ? 'over' : '';
+    if (!sl) return `<button class="gseat ${cls}" style="left:${x}px;top:${y}px" data-seat-e="${t.id}" aria-label="Ledig plass"><span class="gempt">+</span></button>`;
+    const first = esc(sl.g.navn.split(' ')[0]), c = (grp(sl.g.gruppe_id) || {}).farge;
+    return `<button class="gseat ${cls}" style="left:${x}px;top:${y}px" data-seat-g="${sl.g.id}" title="${esc(sl.g.navn)}">${gAv(sl.g, 'sm' + (sl.i ? ' ghosty' : ''))}<span class="lbl" style="--gc:${c ? esc(c) : 'transparent'}">${first}${sl.i ? ' +' + sl.i : ''}</span></button>`;
+  };
+  const centre = `<b>${esc(t.navn)}</b>${used}/${t.plasser}`;
+  let W, H, inner = '';
+  if (t.form === 'rektangel') {
+    const top = Math.ceil(n / 2), bot = n - top, per = 54;
+    W = Math.max(160, Math.max(top, bot) * per + 24); H = 170;
+    inner = `<div class="gcenter ${over ? 'over' : ''}" style="left:12px;top:63px;height:44px;border-radius:12px;width:${W - 24}px">${centre}</div>`;
+    for (let j = 0; j < top; j++) inner += seat(j, W / 2 + (j - (top - 1) / 2) * per, 30);
+    for (let j = 0; j < bot; j++) inner += seat(top + j, W / 2 + (j - (bot - 1) / 2) * per, H - 30);
+  } else {
+    const R = Math.max(74, n * 54 / (2 * Math.PI)); W = H = Math.ceil(2 * R + 90);
+    const d = Math.max(60, 2 * R - 70);
+    inner = `<div class="gcenter ${over ? 'over' : ''}" style="left:${W / 2 - d / 2}px;top:${H / 2 - d / 2}px;width:${d}px;height:${d}px;border-radius:50%">${centre}</div>`;
+    for (let k = 0; k < n; k++) { const a = -Math.PI / 2 + k * 2 * Math.PI / n; inner += seat(k, W / 2 + R * Math.cos(a), H / 2 + R * Math.sin(a)); }
+  }
+  return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div><div class="gplanwrap"><div class="gplan" style="width:${W}px;height:${H}px">${inner}</div></div></div>`;
+}
+function seatPicker(tid) {
+  const t = tables.find(x => x.id === tid); if (!t) return;
+  const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => ((grp(a.gruppe_id) || { navn: '\uffff' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '\uffff' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb'));
+  if (!unp.length) return toast('Ingen uplasserte gjester');
+  sheet(`Sett ved ${t.navn}`, unp.map(g => ({ label: `${g.navn}${g.antall > 1 ? ' (+' + (g.antall - 1) + ')' : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}`, fn: () => saveGuest(g.id, { bord_id: tid }) })));
+}
 async function newGroup() {
   const navn = prompt('Navn på gruppen (f.eks. Familie, Bodø, Trondheim-gjengen):'); if (!navn || !navn.trim()) return null;
   const farge = COLORS[groups.length % COLORS.length];
@@ -863,6 +913,7 @@ async function addTable() {
 function tableMenu(id) {
   const t = tables.find(x => x.id === id); if (!t) return;
   sheet(t.navn, [
+    { label: t.form === 'rektangel' ? 'Gjør bordet rundt' : 'Gjør bordet rektangulært', fn: async () => { const f = t.form === 'rektangel' ? 'rund' : 'rektangel'; const { error } = await sb.from('oppg_bord').update({ form: f }).eq('id', id); if (!fail(error)) { t.form = f; renderGuests(); } } },
     { label: 'Gi nytt navn', fn: async () => { const v = prompt('Nytt navn:', t.navn); if (v && v.trim()) { const { error } = await sb.from('oppg_bord').update({ navn: v.trim() }).eq('id', id); if (!fail(error)) { t.navn = v.trim(); renderGuests(); } } } },
     { label: `Endre antall plasser (${t.plasser})`, fn: async () => { const v = parseInt(prompt('Antall plasser:', t.plasser), 10); if (!(v > 0)) return; const { error } = await sb.from('oppg_bord').update({ plasser: Math.min(100, v) }).eq('id', id); if (!fail(error)) { t.plasser = Math.min(100, v); renderGuests(); } } },
     { label: 'Slett bord (gjestene blir ikke plassert)', danger: true, fn: async () => {
