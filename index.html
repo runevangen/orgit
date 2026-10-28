@@ -174,7 +174,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let query = '', activity = [], files = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let query = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -302,7 +302,7 @@ async function loadBoard() {
     sb.from('oppg_kort').select('*').eq('tavle_id', boardId).order('posisjon')
   ]);
   if (fail(c.error) || fail(k.error)) return;
-  cols = c.data || []; cards = k.data || [];
+  const allCols = c.data || []; cols = allCols.filter(x => !x.arkivert); archCols = allCols.filter(x => x.arkivert); cards = k.data || [];
   await loadActivity(); await loadFiles();
   render();
 }
@@ -393,6 +393,8 @@ function actText(a) {
   const u = userById(a.bruker_id), who = u ? u.navn : 'Noen', t = `«${a.kort_tittel}»`;
   if (a.type === 'opprettet') return `${who} opprettet ${t}`;
   if (a.type === 'slettet') return `${who} slettet ${t}`;
+  if (a.type === 'arkivert') return `${who} arkiverte ${t}`;
+  if (a.type === 'gjenopprettet') return `${who} gjenopprettet ${t}`;
   if (a.type === 'flyttet') return `${who} flyttet ${t} → ${a.tekst}`;
   return `${who}: ${a.tekst}`;
 }
@@ -417,7 +419,7 @@ function render() {
   const lastCol = cols.length ? cols[cols.length - 1].id : null;
   const today = new Date().toISOString().slice(0, 10);
   const html = cols.map(col => {
-    let list = cards.filter(c => c.kolonne_id === col.id);
+    let list = cards.filter(c => c.kolonne_id === col.id && !c.arkivert);
     const total = list.length;
     if (onlyMine) list = list.filter(c => c.ansvarlig === me.id);
     if (query) list = list.filter(matches);
@@ -519,7 +521,7 @@ function openCard(id) {
       <div class="field"><label>Kommentarer</label>
         ${activity.filter(a => a.kort_id === id).slice().reverse().map(a => `<div class="act ${a.type}">${esc(actText(a))}<small>${esc(fmtTid(a.opprettet))}</small></div>`).join('')}
         <form id="fKF" style="display:flex;gap:6px;margin-top:6px"><input id="fKI" placeholder="Skriv en kommentar …" maxlength="2000"><button class="btn">Send</button></form></div>
-      <div class="bar"><button class="btn danger" id="fDel">Slett kort</button><button class="btn" id="fDup">Dupliser</button><button class="btn primary" id="fOk">Ferdig</button></div>`, () => {});
+      <div class="bar"><button class="btn danger" id="fDel">Slett</button><button class="btn" id="fArc">Arkiver</button><button class="btn" id="fDup">Dupliser</button><button class="btn primary" id="fOk">Ferdig</button></div>`, () => {});
     const save = patch => saveCard(id, patch);
     $('#fT', m).onchange = e => { const v = e.target.value.trim(); if (v) save({ tittel: v }); else e.target.value = cur.tittel; };
     $('#fB', m).onchange = e => save({ beskrivelse: e.target.value });
@@ -536,8 +538,9 @@ function openCard(id) {
     m.querySelectorAll('[data-view]').forEach(im => im.onclick = () => viewPhoto(im.dataset.view));
     m.querySelectorAll('[data-fdel]').forEach(b => b.onclick = async () => { if (confirm('Slette bildet?')) { await removePhoto(b.dataset.fdel); render_(); } });
     $('#fKF', m).onsubmit = async e => { e.preventDefault(); const v = $('#fKI', m).value.trim(); if (!v) return; if (await logAct('kommentar', v, cur)) { render_(); setTimeout(() => $('#fKI')?.focus(), 0); } };
+    $('#fArc', m).onclick = async () => { closeModal(); await setCardArchived(id, true); };
     $('#fDup', m).onclick = async () => {
-      const { id: _i, opprettet, oppdatert, ...rest } = cur;
+      const { id: _i, opprettet, oppdatert, arkivert, ...rest } = cur;
       const { data, error } = await sb.from('oppg_kort').insert({ ...rest, tittel: cur.tittel + ' (kopi)', posisjon: nextPos(cur.kolonne_id) }).select().single();
       if (fail(error, 'kunne ikke duplisere')) return;
       cards.push(data); closeModal(); render(); logAct('opprettet', '', data); toast('Kort duplisert');
@@ -554,11 +557,48 @@ function openCard(id) {
   render_();
 }
 
+/* ---------- Arkiv ---------- */
+async function setCardArchived(id, val) {
+  const c = cards.find(x => x.id === id); if (!c) return;
+  c.arkivert = val; render();
+  const { error } = await sb.from('oppg_kort').update({ arkivert: val, oppdatert: new Date().toISOString() }).eq('id', id);
+  if (fail(error, val ? 'kunne ikke arkivere' : 'kunne ikke gjenopprette')) { c.arkivert = !val; render(); return; }
+  logAct(val ? 'arkivert' : 'gjenopprettet', '', c);
+  toast(val ? 'Kortet er arkivert' : 'Kortet er gjenopprettet');
+}
+async function restoreCol(id) {
+  const col = archCols.find(c => c.id === id); if (!col) return;
+  const { error } = await sb.from('oppg_kolonner').update({ arkivert: false }).eq('id', id);
+  if (fail(error, 'kunne ikke gjenopprette')) return;
+  col.arkivert = false; archCols = archCols.filter(c => c.id !== id); cols.push(col); cols.sort((a, b) => a.posisjon - b.posisjon); render(); toast('Kolonnen er gjenopprettet');
+}
+function showArchive() {
+  const colName = id => ((cols.find(c => c.id === id) || {}).tittel) || '';
+  const items = cards.filter(c => c.arkivert && cols.some(k => k.id === c.kolonne_id));
+  const m = showModal(`<h2>Arkiv</h2>
+    ${archCols.length ? `<div class="field"><label>Kolonner</label>${archCols.map(c => `<div class="act">${esc(c.tittel)} <small>${cards.filter(k => k.kolonne_id === c.id).length} kort</small><div class="bar"><span></span><button class="btn" data-rc="${c.id}">Gjenopprett</button></div></div>`).join('')}</div>` : ''}
+    <div class="field"><label>Kort</label>${items.length ? items.map(c => `<div class="act">${esc(c.tittel)} <small>fra «${esc(colName(c.kolonne_id))}»</small><div class="bar"><button class="btn danger" data-dc="${c.id}">Slett</button><button class="btn" data-rk="${c.id}">Gjenopprett</button></div></div>`).join('') : '<p class="empty" style="padding:16px">Ingen arkiverte kort.</p>'}</div>
+    <div class="bar"><span></span><button class="btn primary" id="arcOk">Lukk</button></div>`);
+  $('#arcOk', m).onclick = closeModal;
+  m.querySelectorAll('[data-rc]').forEach(b => b.onclick = async () => { await restoreCol(b.dataset.rc); showArchive(); });
+  m.querySelectorAll('[data-rk]').forEach(b => b.onclick = async () => { await setCardArchived(b.dataset.rk, false); showArchive(); });
+  m.querySelectorAll('[data-dc]').forEach(b => b.onclick = async () => {
+    if (!confirm('Slette kortet for godt?')) return;
+    const id = b.dataset.dc, mine = files.filter(f => f.kort_id === id); if (mine.length) await sb.storage.from(BUCKET).remove(mine.map(f => f.sti));
+    const { error } = await sb.from('oppg_kort').delete().eq('id', id); if (fail(error, 'kunne ikke slette')) return;
+    files = files.filter(f => f.kort_id !== id); cards = cards.filter(x => x.id !== id); render(); showArchive();
+  });
+}
+
 /* ---------- Kolonner og tavler ---------- */
 function colMenu(id) {
   const col = cols.find(c => c.id === id), i = cols.indexOf(col);
   const opts = [{ label: 'Gi nytt navn', fn: async () => { const v = prompt('Nytt navn på kolonnen:', col.tittel); if (v && v.trim()) { const { error } = await sb.from('oppg_kolonner').update({ tittel: v.trim() }).eq('id', id); if (!fail(error)) { col.tittel = v.trim(); render(); } } } }];
   opts.push({ label: 'Velg farge', fn: () => colColor(col) });
+  opts.push({ label: 'Arkiver kolonne (skjuler kortene)', fn: async () => {
+    const { error } = await sb.from('oppg_kolonner').update({ arkivert: true }).eq('id', id);
+    if (!fail(error)) { col.arkivert = true; cols = cols.filter(c => c.id !== id); archCols.push(col); render(); toast('Kolonnen er arkivert. Finn den under Arkiv.'); }
+  } });
   opts.push({ label: col.wip_grense ? `Kolonnegrense: ${col.wip_grense} (endre)` : 'Sett kolonnegrense', fn: async () => {
     const v = prompt('Maks antall kort i kolonnen (tomt = ingen grense):', col.wip_grense || ''); if (v === null) return;
     const n = v.trim() === '' ? null : parseInt(v, 10); if (n !== null && !(n > 0)) return toast('Skriv et positivt tall');
@@ -608,6 +648,7 @@ function boardMenu() {
 }
 function meMenu() {
   sheet(me.navn, [
+    { label: 'Arkiv', fn: showArchive },
     { label: 'Aktivitet', fn: showActivity },
     { label: 'Eksporter tavle (JSON)', fn: () => exportBoard('json') },
     { label: 'Eksporter tavle (CSV)', fn: () => exportBoard('csv') },
@@ -642,7 +683,7 @@ $('#searchIn').oninput = e => { query = e.target.value.trim(); render(); };
 $('#searchClear').onclick = () => { query = ''; $('#searchIn').value = ''; $('#searchBar').classList.add('hidden'); render(); };
 function exportBoard(fmt) {
   const b = boards.find(x => x.id === boardId), name = (b ? b.navn : 'tavle').replace(/[^\wæøåÆØÅ-]+/g, '_');
-  const rows = cards.map(c => ({ kolonne: (cols.find(k => k.id === c.kolonne_id) || {}).tittel || '', tittel: c.tittel, beskrivelse: c.beskrivelse || '', ansvarlig: (userById(c.ansvarlig) || {}).navn || '', frist: c.frist || '', etikett: (LABELS.find(l => l.k === c.etikett) || {}).n || '', sjekkliste: (Array.isArray(c.sjekkliste) ? c.sjekkliste : []).map(x => (x.d ? '[x] ' : '[ ] ') + x.t).join(' | ') }));
+  const rows = cards.map(c => ({ kolonne: ([...cols, ...archCols].find(k => k.id === c.kolonne_id) || {}).tittel || '', arkivert: c.arkivert ? 'ja' : '', tittel: c.tittel, beskrivelse: c.beskrivelse || '', ansvarlig: (userById(c.ansvarlig) || {}).navn || '', frist: c.frist || '', etikett: (LABELS.find(l => l.k === c.etikett) || {}).n || '', sjekkliste: (Array.isArray(c.sjekkliste) ? c.sjekkliste : []).map(x => (x.d ? '[x] ' : '[ ] ') + x.t).join(' | ') }));
   let text, type;
   if (fmt === 'json') { text = JSON.stringify({ tavle: b && b.navn, eksportert: new Date().toISOString(), kolonner: cols, kort: cards, aktivitet: activity }, null, 2); type = 'application/json'; }
   else { const q = v => '"' + String(v).replace(/"/g, '""') + '"', h = Object.keys(rows[0] || { kolonne: 1, tittel: 1, beskrivelse: 1, ansvarlig: 1, frist: 1, etikett: 1, sjekkliste: 1 }); text = '\ufeff' + [h.join(';'), ...rows.map(r => h.map(k => q(r[k])).join(';'))].join('\r\n'); type = 'text/csv'; }
