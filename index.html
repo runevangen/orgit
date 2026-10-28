@@ -769,7 +769,8 @@ function renderGuests() {
     body = `${sum}${viewToggle}<div class="gunp"><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div>
       <div class="gtables">${gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div>
-      <div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>`;
+      <div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
+      <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Lag bilde av bordplassering (last ned, del, skriv ut)</button>`;
   }
   el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
     <div class="gtabs"><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bordplassering</button></div><div class="gbody">${body}</div>`;
@@ -786,6 +787,7 @@ function renderGuests() {
   } else {
     $('#gNewTable', el).onclick = addTable;
     $('#gTypes', el).onclick = manageTypes;
+    $('#gImg', el).onclick = planExport;
     el.querySelectorAll('[data-tmenu]').forEach(x => x.onclick = () => tableMenu(x.dataset.tmenu));
     el.querySelectorAll('.gchip').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) editGuest(x.dataset.id); });
     el.querySelectorAll('[data-gview]').forEach(x => x.onclick = () => { gView = x.dataset.gview; renderGuests(); });
@@ -992,6 +994,143 @@ function tableMenu(id) {
   );
   sheet(t.navn, opts);
 }
+/* ---------- Bilde av bordplassering ---------- */
+function wrapText(ctx, text, maxW, maxLines) {
+  const words = String(text).split(/\s+/), lines = []; let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(t).width <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) { lines.length = maxLines; let l = lines[maxLines - 1]; while (l.length > 1 && ctx.measureText(l + '…').width > maxW) l = l.slice(0, -1); lines[maxLines - 1] = l + '…'; }
+  return lines.map(l => { while (l.length > 1 && ctx.measureText(l).width > maxW) l = l.slice(0, -2) + '…'; return l; });
+}
+async function buildPlanCanvas(o) {
+  const SC = 2, PW = 1240, M = 50, FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif', AV = 22;
+  const first = n => n.split(/\s+/)[0], nm = g => o.full ? g.navn : first(g.navn);
+  const gcol = g => (grp(g.gruppe_id) || {}).farge || '#98a2b3';
+  const byGrp = (a, b) => ((grp(a.gruppe_id) || { navn: '￿' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '￿' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb');
+  const seated = guests.filter(g => g.bord_id && g.status !== 'kommer_ikke');
+  const imgs = {};
+  if (o.photos) await Promise.all(seated.filter(g => g.bilde_sti).map(g => new Promise(res => {
+    const im = new Image(); im.crossOrigin = 'anonymous'; const t = setTimeout(res, 8000);
+    im.onload = () => { imgs[g.id] = im; clearTimeout(t); res(); }; im.onerror = () => { clearTimeout(t); res(); }; im.src = pubUrl(g.bilde_sti);
+  })));
+  const measure = document.createElement('canvas').getContext('2d'); measure.font = `13px ${FONT}`;
+  // oppsett av bordceller
+  const cells = tables.map(t => {
+    const list = seated.filter(g => g.bord_id === t.id).sort(byGrp), slots = [];
+    list.forEach(g => { for (let i = 0; i < g.antall; i++) slots.push({ g, i }); });
+    const n = Math.max(t.plasser, slots.length);
+    if (t.form === 'rektangel') { const top = Math.ceil(n / 2), bot = n - top, per = o.full ? 110 : 88; return { t, list, slots, n, top, bot, per, w: Math.max(300, Math.max(top, bot) * per + 40), h: 312 }; }
+    const R = Math.max(74, n * 62 / (2 * Math.PI)); return { t, list, slots, n, R, w: Math.ceil(2 * R + 250), h: Math.ceil(2 * R + 140) };
+  });
+  const legend = groups.filter(x => seated.some(g => g.gruppe_id === x.id));
+  const headH = 120 + (legend.length ? 34 : 0);
+  let x = M, y = headH, rowH = 0;
+  cells.forEach(c => { if (x + c.w > PW - M && x > M) { x = M; y += rowH + 10; rowH = 0; } c.x = x; c.y = y; x += c.w + 10; rowH = Math.max(rowH, c.h); });
+  const planEnd = y + rowH + 20;
+  // navneliste
+  const blocks = [];
+  if (o.list) {
+    cells.forEach(c => blocks.push({ title: `${c.t.navn} (${c.slots.length}/${c.t.plasser})`, lines: c.list.map(g => `${g.navn}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}`) }));
+    const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort(byGrp);
+    if (unp.length) blocks.push({ title: 'Ikke plassert', lines: unp.map(g => `${g.navn}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}`) });
+  }
+  const COLS = 3, colW = (PW - 2 * M) / COLS, colY = Array(COLS).fill(planEnd + (blocks.length ? 50 : 0));
+  blocks.forEach(b => { const ci = colY.indexOf(Math.min(...colY)); b.col = ci; b.y = colY[ci]; colY[ci] += 30 + Math.max(1, b.lines.length) * 21 + 14; });
+  const H = Math.ceil(Math.max(planEnd, ...colY) + 50);
+  const cv = document.createElement('canvas'); cv.width = PW * SC; cv.height = H * SC;
+  const ctx = cv.getContext('2d'); ctx.scale(SC, SC); ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PW, H);
+  const b = boards.find(z => z.id === boardId), coming = guests.filter(g => g.status !== 'kommer_ikke').reduce((n, g) => n + g.antall, 0), placed = seated.reduce((n, g) => n + g.antall, 0);
+  ctx.fillStyle = '#1b1f29'; ctx.font = `700 36px ${FONT}`; ctx.fillText('Bordplassering', M, 62);
+  ctx.fillStyle = '#667085'; ctx.font = `16px ${FONT}`;
+  ctx.fillText(`${b ? b.navn + ' · ' : ''}${placed} av ${coming} personer plassert · ${new Date().toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })}`, M, 92);
+  let lx = M; legend.forEach(l => { ctx.fillStyle = l.farge; ctx.beginPath(); ctx.arc(lx + 8, headH - 26, 8, 0, 7); ctx.fill(); ctx.fillStyle = '#1b1f29'; ctx.font = `14px ${FONT}`; ctx.fillText(l.navn, lx + 22, headH - 21); lx += 22 + ctx.measureText(l.navn).width + 24; });
+  const avatar = (cx, cy, g, ghost) => {
+    ctx.save(); ctx.globalAlpha = ghost ? .45 : 1;
+    ctx.beginPath(); ctx.arc(cx, cy, AV, 0, 7); ctx.closePath(); ctx.fillStyle = gcol(g); ctx.fill();
+    const im = imgs[g.id];
+    if (im) { ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, AV - 3, 0, 7); ctx.clip(); const sd = Math.min(im.width, im.height); ctx.drawImage(im, (im.width - sd) / 2, (im.height - sd) / 2, sd, sd, cx - AV + 3, cy - AV + 3, 2 * AV - 6, 2 * AV - 6); ctx.restore(); }
+    else { ctx.fillStyle = '#fff'; ctx.font = `700 20px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(initial(g.navn), cx, cy + 7); }
+    ctx.restore();
+  };
+  const empty = (cx, cy, over) => { ctx.save(); ctx.setLineDash([5, 4]); ctx.strokeStyle = over ? '#d92d20' : '#c3c8d4'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, AV - 2, 0, 7); ctx.stroke(); ctx.restore(); };
+  const label = (g, i, cx, cy, mode, dx) => {
+    ctx.fillStyle = '#1b1f29'; ctx.font = `600 13px ${FONT}`;
+    const lines = i ? [`${first(g.navn)} +${i}`] : wrapText(ctx, nm(g), mode === 'side' ? 92 : o.full ? 116 : 90, 2);
+    if (mode === 'below') { ctx.textAlign = 'center'; lines.forEach((l, k) => ctx.fillText(l, cx, cy + AV + 17 + k * 15)); }
+    else if (mode === 'above') { ctx.textAlign = 'center'; lines.forEach((l, k) => ctx.fillText(l, cx, cy - AV - 9 - (lines.length - 1 - k) * 15)); }
+    else { ctx.textAlign = dx > 0 ? 'left' : 'right'; lines.forEach((l, k) => ctx.fillText(l, cx + (dx > 0 ? AV + 8 : -AV - 8), cy + 4 - (lines.length - 1) * 7 + k * 15)); }
+  };
+  cells.forEach(c => {
+    const t = c.t, over = c.slots.length > t.plasser, ox = c.x, oy = c.y;
+    ctx.lineWidth = 3; ctx.strokeStyle = over ? '#d92d20' : '#c3c8d4'; ctx.fillStyle = '#f4f5f8';
+    const centre = (cx, cy) => { ctx.textAlign = 'center'; ctx.fillStyle = '#1b1f29'; ctx.font = `700 17px ${FONT}`; ctx.fillText(wrapText(ctx, t.navn, 120, 1)[0], cx, cy - 2); ctx.fillStyle = over ? '#d92d20' : '#667085'; ctx.font = `14px ${FONT}`; ctx.fillText(`${c.slots.length}/${t.plasser}`, cx, cy + 18); };
+    const seat = (k, cx, cy, mode, dx) => { const sl = c.slots[k]; if (!sl) { empty(cx, cy, k >= t.plasser); return; } avatar(cx, cy, sl.g, sl.i > 0); label(sl.g, sl.i, cx, cy, mode, dx); };
+    if (t.form === 'rektangel') {
+      const bx = ox + 20, bw = c.w - 40; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, oy + 126, bw, 56, 14) : ctx.rect(bx, oy + 126, bw, 56); ctx.fillStyle = '#f4f5f8'; ctx.fill(); ctx.stroke();
+      centre(ox + c.w / 2, oy + 150);
+      for (let j = 0; j < c.top; j++) seat(j, ox + c.w / 2 + (j - (c.top - 1) / 2) * c.per, oy + 50, 'below', 0);
+      for (let j = 0; j < c.bot; j++) seat(c.top + j, ox + c.w / 2 + (j - (c.bot - 1) / 2) * c.per, oy + 258, 'below', 0);
+    } else {
+      const cx = ox + c.w / 2, cy = oy + c.h / 2, dr = Math.max(40, c.R - AV - 16);
+      ctx.beginPath(); ctx.arc(cx, cy, dr, 0, 7); ctx.fillStyle = '#f4f5f8'; ctx.fill(); ctx.stroke(); centre(cx, cy);
+      for (let k = 0; k < c.n; k++) {
+        const a = -Math.PI / 2 + k * 2 * Math.PI / c.n, dx = Math.cos(a), dy = Math.sin(a);
+        seat(k, cx + c.R * dx, cy + c.R * dy, Math.abs(dy) > .6 ? (dy < 0 ? 'above' : 'below') : 'side', dx);
+      }
+    }
+  });
+  if (blocks.length) {
+    ctx.textAlign = 'left'; ctx.fillStyle = '#1b1f29'; ctx.font = `700 22px ${FONT}`; ctx.fillText('Navneliste', M, planEnd + 28);
+    ctx.strokeStyle = '#e4e7ee'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(M, planEnd + 8); ctx.lineTo(PW - M, planEnd + 8); ctx.stroke();
+    blocks.forEach(bk => {
+      const bx = M + bk.col * colW; ctx.textAlign = 'left'; ctx.fillStyle = '#1b1f29'; ctx.font = `700 15px ${FONT}`; ctx.fillText(bk.title, bx, bk.y + 16);
+      ctx.fillStyle = '#344054'; ctx.font = `14px ${FONT}`;
+      (bk.lines.length ? bk.lines : ['–']).forEach((l, k) => ctx.fillText(wrapText(ctx, l, colW - 20, 1)[0], bx, bk.y + 38 + k * 21));
+    });
+  }
+  ctx.textAlign = 'right'; ctx.fillStyle = '#98a2b3'; ctx.font = `12px ${FONT}`; ctx.fillText('Laget i Oppgavetavle', PW - M, H - 20);
+  return cv;
+}
+async function planExport() {
+  if (!tables.length) return toast('Lag minst ett bord først');
+  const hasPhotos = guests.some(g => g.bilde_sti && g.bord_id);
+  const o = { photos: hasPhotos, full: true, list: true };
+  const m = showModal(`<h2>Bilde av bordplassering</h2>
+    <label class="remember"><input type="checkbox" id="xPh" ${o.photos ? 'checked' : ''}> Ta med bilder av gjestene</label>
+    <label class="remember"><input type="checkbox" id="xFu" checked> Fullt navn (ellers bare fornavn)</label>
+    <label class="remember"><input type="checkbox" id="xLi" checked> Navneliste under tegningen</label>
+    <div id="xPrev" style="margin:8px 0;max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff;min-height:80px"><p style="padding:24px;text-align:center;color:#667085">Lager bilde …</p></div>
+    <div class="photobtns"><button class="btn primary" id="xDl" disabled>Last ned</button><button class="btn" id="xSh" disabled>Del</button><button class="btn" id="xPr" disabled>Skriv ut</button><button class="btn" id="xX">Lukk</button></div>`);
+  let cv = null, seq = 0;
+  const build = async () => {
+    const my = ++seq; ['xDl', 'xSh', 'xPr'].forEach(i => $('#' + i, m).disabled = true);
+    o.photos = $('#xPh', m).checked; o.full = $('#xFu', m).checked; o.list = $('#xLi', m).checked;
+    try { const c = await buildPlanCanvas(o); if (my !== seq || !$('#xPrev', m)) return; cv = c; $('#xPrev', m).innerHTML = ''; c.style.cssText = 'width:100%;display:block'; $('#xPrev', m).appendChild(c); ['xDl', 'xSh', 'xPr'].forEach(i => $('#' + i, m).disabled = false); }
+    catch (e) { console.error(e); if (my === seq) $('#xPrev', m).innerHTML = '<p style="padding:24px;text-align:center;color:#d92d20">Kunne ikke lage bildet. Prøv uten bilder av gjestene.</p>'; }
+  };
+  const blob = () => new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error('Kunne ikke lage bildet')), 'image/png'));
+  ['xPh', 'xFu', 'xLi'].forEach(i => $('#' + i, m).onchange = build);
+  $('#xX', m).onclick = closeModal;
+  $('#xDl', m).onclick = async () => { const bl = await blob(), a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = 'bordplassering.png'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); };
+  $('#xSh', m).onclick = async () => {
+    const bl = await blob(), f = new File([bl], 'bordplassering.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { try { await navigator.share({ files: [f], title: 'Bordplassering' }); } catch {} }
+    else { toast('Deling støttes ikke her. Bruk Last ned.'); }
+  };
+  $('#xPr', m).onclick = async () => {
+    const url = URL.createObjectURL(await blob()), fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    fr.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:8mm}html,body{margin:0}img{width:100%;height:auto;display:block}</style></head><body><img src="${url}"></body></html>`;
+    fr.onload = () => { const im = fr.contentDocument.querySelector('img'); const go = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { toast('Kunne ikke starte utskrift. Bruk Last ned.'); } setTimeout(() => { fr.remove(); URL.revokeObjectURL(url); }, 60000); }; if (im.complete) go(); else im.onload = go; };
+    document.body.appendChild(fr);
+  };
+  build();
+}
+
 function exportGuests() {
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const h = ['navn', 'antall', 'gruppe', 'svar', 'bord', 'notat'];
