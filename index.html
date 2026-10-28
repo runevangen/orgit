@@ -279,7 +279,9 @@ body.dragging #board{scroll-snap-type:none}
 #tspot{position:absolute;border-radius:14px;pointer-events:none;box-shadow:0 0 0 9999px rgba(8,12,24,.62),0 0 0 3px var(--accent);animation:tpulse 1.6s ease-in-out infinite;transition:left .2s,top .2s,width .2s,height .2s}
 @keyframes tpulse{0%,100%{box-shadow:0 0 0 9999px rgba(8,12,24,.62),0 0 0 3px var(--accent)}50%{box-shadow:0 0 0 9999px rgba(8,12,24,.62),0 0 0 8px rgba(79,124,255,.5)}}
 #ttip{position:absolute;background:var(--surface);color:var(--text);border-radius:14px;padding:14px 14px 12px;box-shadow:0 10px 32px rgba(0,0,0,.35);max-height:calc(100vh - 24px);overflow:auto}
-#ttip h4{margin:0 0 4px;font-size:16px}
+#ttip h4{margin:0 0 4px;font-size:16px;padding-right:40px}
+#tClose{position:absolute;top:2px;right:2px;width:44px;height:44px;border:0;background:transparent;font-size:20px;color:var(--muted);border-radius:12px;cursor:pointer}
+#tClose:hover{background:var(--col)}
 #ttip p{margin:0 0 12px;font-size:14px;line-height:1.45;color:var(--text)}
 #ttip .tf{display:flex;align-items:center;gap:8px}
 #ttip .tf .cnt{flex:1;color:var(--muted);font-size:12px}
@@ -1233,7 +1235,7 @@ function endTour() { if (!tour) return; window.removeEventListener('resize', tou
 function startTour(steps) {
   endTour(); closeModal();
   const root = document.createElement('div'); root.id = 'tour'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Guide');
-  root.innerHTML = '<div id="tdim"></div><div id="tspot"></div><div id="tarrow"></div><div id="ttip"><h4 id="tt"></h4><p id="tx"></p><div class="tf"><button class="tskip" id="tSkip">Hopp over</button><span class="cnt" id="tCnt"></span><button class="btn" id="tPrev">Tilbake</button><button class="btn primary" id="tNext">Neste</button></div></div>';
+  root.innerHTML = '<div id="tdim"></div><div id="tspot"></div><div id="tarrow"></div><div id="ttip"><button id="tClose" type="button" aria-label="Avslutt guiden">✕</button><h4 id="tt"></h4><p id="tx"></p><div class="tf"><button class="tskip" id="tSkip">Avslutt</button><span class="cnt" id="tCnt"></span><button class="btn" id="tPrev">Tilbake</button><button class="btn primary" id="tNext">Neste</button></div></div>';
   document.body.appendChild(root);
   tour = { steps, i: 0, target: null };
   const place = () => {
@@ -1268,7 +1270,7 @@ function startTour(steps) {
   tour.re = () => requestAnimationFrame(place);
   tour.key = e => { if (e.key === 'Escape') { e.stopPropagation(); endTour(); } else if (e.key === 'ArrowRight') { e.stopPropagation(); $('#tNext').click(); } else if (e.key === 'ArrowLeft') { e.stopPropagation(); $('#tPrev').click(); } };
   window.addEventListener('resize', tour.re); document.addEventListener('scroll', tour.re, true); window.addEventListener('keydown', tour.key, true);
-  $('#tSkip').onclick = endTour;
+  $('#tSkip').onclick = endTour; $('#tClose').onclick = endTour;
   $('#tPrev').onclick = () => { if (tour.i > 0) show(tour.i - 1); };
   $('#tNext').onclick = () => { if (tour.i < steps.length - 1) show(tour.i + 1); else endTour(); };
   show(0);
