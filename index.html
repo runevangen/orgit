@@ -1437,14 +1437,27 @@ async function showRsvp(token) {
       keep(); const gone = st === 'kommer_ikke';
       const r = await sb.rpc('oppg_rsvp_svar2', { p_token: token, p_status: st, p_antall: gone ? null : n, p_melding: msg, p_matvalg: gone ? null : mv, p_allergier: gone ? null : al });
       if (r.error || r.data !== true) { $('#rErr', box).textContent = 'Kunne ikke sende svaret. Prøv igjen.'; return; }
-      box.innerHTML = `<div class="lbox rsvpdone"><div class="big">${st === 'kommer' ? '🎉' : st === 'kanskje' ? '👍' : '👋'}</div><h1>Takk, ${esc(g.navn.split(' ')[0])}!</h1><p>${st === 'kommer' ? `Vi gleder oss! Du har svart at du kommer${n > 1 ? ` (${n} personer)` : ''}.` : st === 'kanskje' ? 'Du har svart kanskje. Gi gjerne beskjed når du vet mer.' : 'Synd at du ikke kan komme. Takk for beskjed.'}</p>${st !== 'kommer_ikke' && g.arr_dato ? '<button class="btn" id="rIcs" style="width:100%;margin-bottom:8px">📅 Legg i kalender</button>' : ''}<button class="btn" id="rAgain" style="width:100%">Endre svar</button></div>`;
+      box.innerHTML = `<div class="lbox rsvpdone"><div class="big">${st === 'kommer' ? '🎉' : st === 'kanskje' ? '👍' : '👋'}</div><h1>Takk, ${esc(g.navn.split(' ')[0])}!</h1><p>${st === 'kommer' ? `Vi gleder oss! Du har svart at du kommer${n > 1 ? ` (${n} personer)` : ''}.` : st === 'kanskje' ? 'Du har svart kanskje. Gi gjerne beskjed når du vet mer.' : 'Synd at du ikke kan komme. Takk for beskjed.'}</p>${st !== 'kommer_ikke' && g.arr_dato ? '<div class="rcal"><div class="rsvpq" style="margin-top:4px">📅 Legg i kalender</div><button class="btn" id="rIcs" style="width:100%;margin-bottom:6px">Apple / iPhone (kalenderfil)</button><a class="btn" id="rGoogle" target="_blank" rel="noopener" style="display:block;text-align:center;margin-bottom:6px">Google Kalender</a><a class="btn" id="rOutlook" target="_blank" rel="noopener" style="display:block;text-align:center;margin-bottom:10px">Outlook</a></div>' : ''}<button class="btn" id="rAgain" style="width:100%">Endre svar</button></div>`;
       $('#rAgain', box).onclick = draw;
-      if ($('#rIcs', box)) $('#rIcs', box).onclick = () => {
-        const ie = t => String(t || '').replace(/\\/g, '\\\\').replace(/[,;]/g, c => '\\' + c).replace(/\r?\n/g, '\\n'), d = g.arr_dato.replace(/-/g, '');
-        const start = g.arr_tid ? `DTSTART:${d}T${g.arr_tid.replace(':', '')}00\r\nDURATION:PT4H` : `DTSTART;VALUE=DATE:${d}`;
-        const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Oppgavetavle//NO', 'BEGIN:VEVENT', `UID:${token.slice(0, 20)}@oppgavetavle`, `DTSTAMP:${new Date().toISOString().replace(/[-:]|\.\d+/g, '')}`, start, `SUMMARY:${ie(g.arr_navn || g.tavle_navn)}`, g.arr_sted ? `LOCATION:${ie(g.arr_sted)}` : '', g.arr_tekst ? `DESCRIPTION:${ie(g.arr_tekst)}` : '', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' })); a.download = 'invitasjon.ics'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-      };
+      if ($('#rIcs', box)) {
+        const t = g.arr_navn || g.tavle_navn, pad = x => String(x).padStart(2, '0'), d0 = g.arr_dato, fm = dt => `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}`;
+        const st0 = new Date(d0 + 'T' + (g.arr_tid || '00:00') + ':00'), en0 = new Date(st0.getTime() + (g.arr_tid ? 4 * 3600e3 : 24 * 3600e3));
+        const loc = g.arr_sted || '', det = g.arr_tekst || '';
+        const gS = g.arr_tid ? `${fm(st0)}T${pad(st0.getHours())}${pad(st0.getMinutes())}00` : fm(st0), gE = g.arr_tid ? `${fm(en0)}T${pad(en0.getHours())}${pad(en0.getMinutes())}00` : fm(en0);
+        $('#rGoogle', box).href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(t)}&dates=${gS}/${gE}&location=${encodeURIComponent(loc)}&details=${encodeURIComponent(det)}`;
+        const oz = dt => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00`;
+        $('#rOutlook', box).href = `https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=${encodeURIComponent(t)}&startdt=${encodeURIComponent(oz(st0))}&enddt=${encodeURIComponent(oz(en0))}&location=${encodeURIComponent(loc)}&body=${encodeURIComponent(det)}${g.arr_tid ? '' : '&allday=true'}`;
+        $('#rIcs', box).onclick = () => {
+          const ie = x => String(x || '').replace(/\\/g, '\\\\').replace(/[,;]/g, c => '\\' + c).replace(/\r?\n/g, '\\n');
+          const start = g.arr_tid ? `DTSTART:${gS}\r\nDTEND:${gE}` : `DTSTART;VALUE=DATE:${gS}\r\nDTEND;VALUE=DATE:${gE}`;
+          const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Oppgavetavle//NO', 'BEGIN:VEVENT', `UID:${token.slice(0, 20)}@oppgavetavle`, `DTSTAMP:${new Date().toISOString().replace(/[-:]|\.\d+/g, '')}`, start, `SUMMARY:${ie(t)}`, loc ? `LOCATION:${ie(loc)}` : '', det ? `DESCRIPTION:${ie(det)}` : '', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+          try {
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' })); a.download = 'invitasjon.ics'; a.style.display = 'none'; document.body.appendChild(a); a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+            toast('Åpner kalenderfilen. Fungerer ikke det, bruk Google eller Outlook under.', 6000);
+          } catch (e) { toast('Kunne ikke lage kalenderfilen. Bruk Google eller Outlook under.', 6000); }
+        };
+      }
     };
   };
   draw();
