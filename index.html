@@ -165,6 +165,7 @@ body.dragging #board{scroll-snap-type:none}
 .gth .cnt.over{color:var(--danger);font-weight:700}
 .gth button{border:0;background:transparent;font-size:18px;color:var(--muted);padding:2px 8px}
 .gseats{min-height:48px;display:flex;flex-direction:column;gap:6px}
+@media (max-width:999px){.gunp .gseats{max-height:28vh;overflow:auto}}
 .gchip{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:8px;padding:6px 10px 6px 6px;border-left:5px solid var(--sc,var(--line));cursor:pointer;word-break:break-word;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .gav{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none;border:3px solid var(--sc,var(--line));display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;background:var(--muted)}
 .gav.sm{width:30px;height:30px;border-width:2px;font-size:12px}
@@ -1040,7 +1041,7 @@ function renderGuests() {
     const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Bord</button><button class="btn ${gView === 'floor' ? 'on' : ''}" data-gview="floor">Lokale</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
     const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
     body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div><div class="gbtns"><div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
-      <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Lag bilde av bordplassering (last ned, del, skriv ut)</button>
+      <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Bilde av bordplanen</button>
       <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
   }
@@ -1194,7 +1195,7 @@ function floorHtml() {
   ensureFloorPos();
   const parts = tables.map(t => ({ t, g: planParts(t) }));
   const fw = Math.max(1200, ...parts.map(p => p.t.x + p.g.W + 120), ...elements.map(e => e.x + e.w + 120)), fh = Math.max(800, ...parts.map(p => p.t.y + p.g.H + 120), ...elements.map(e => e.y + e.h + 120));
-  return `<div class="ftool"><button class="btn" id="fAdd">+ Element</button><button class="btn" id="fZm" aria-label="Zoom ut">−</button><button class="btn" id="fZp" aria-label="Zoom inn">+</button><span style="align-self:center;color:var(--muted);font-size:12px">${Math.round(gScale * 100)} %</span><button class="btn" id="fAuto">Ordne bordene</button></div>
+  return `<div class="ftool"><button class="btn" id="fAdd">+ Element</button><button class="btn" id="fZm" aria-label="Zoom ut">−</button><button class="btn" id="fZp" aria-label="Zoom inn">+</button><span style="align-self:center;color:var(--muted);font-size:12px">${Math.round(gScale * 100)} %</span><button class="btn" id="fAuto" title="Ordne bordene">Ordne</button></div>
     <div class="floorscroll"><div style="position:relative;width:${fw * gScale}px;height:${fh * gScale}px"><div class="floor" id="floor" style="width:${fw}px;height:${fh}px;transform:scale(${gScale})">
       ${elements.map(e => `<div class="felem" data-fe="${e.id}" style="left:${e.x}px;top:${e.y}px;width:${e.w}px;height:${e.h}px">${esc(e.navn)}</div>`).join('')}
       ${parts.map(({ t, g }) => `<div class="ftable" data-ft="${t.id}" data-droptbl="${t.id}" style="left:${t.x}px;top:${t.y}px;width:${g.W}px;height:${g.H}px"><div class="gplan" style="width:${g.W}px;height:${g.H}px">${g.inner}</div></div>`).join('')}
