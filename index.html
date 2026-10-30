@@ -214,6 +214,7 @@ body.dragging #board{scroll-snap-type:none}
 .rsvpbtns button.sel.kommer{background:#12b76a;border-color:#12b76a;color:#fff}
 .rsvpbtns button.sel.kanskje{background:#e5b400;border-color:#e5b400;color:#fff}
 .rsvpbtns button.sel.kommer_ikke{background:#d92d20;border-color:#d92d20;color:#fff}
+.rsvpbtns button.sel:not(.kommer):not(.kanskje):not(.kommer_ikke){background:var(--accent,#4f7cff);border-color:var(--accent,#4f7cff);color:#fff}
 .stepper{display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .stepper .btn{width:44px;height:44px;font-size:20px;padding:0}
 .stepper b{font-size:20px;min-width:28px;text-align:center}
@@ -1020,7 +1021,8 @@ function renderGuests() {
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select></div>
       <div class="gtools"><button class="btn" id="gManage" type="button" style="width:100%;margin-bottom:8px">Grupper (${groups.length}) · lag og rediger</button>
       <button class="btn" id="gInv" type="button" style="width:100%;margin-bottom:8px">📅 Invitasjon: dato, sted og tekst</button>
-      <button class="btn" id="gLinks" type="button" style="width:100%;margin-bottom:8px">✉ Svarlenker til gjestene</button></div>
+      <button class="btn" id="gLinks" type="button" style="width:100%;margin-bottom:8px">✉ Svarlenker til gjestene</button>
+      <button class="btn" id="gFood" type="button" style="width:100%;margin-bottom:8px">🍽 Matvalg og allergier</button></div>
       <div id="gList">${gListHtml()}</div></div>`;
   } else {
     const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
@@ -1046,6 +1048,7 @@ function renderGuests() {
     $('#gManage', el).onclick = manageGroups;
     if ($('#gHintGo', el)) { $('#gHintGo', el).onclick = () => { store.set('oppg_guide_g', '1'); startTour(TOUR_GUESTS); }; $('#gHintNo', el).onclick = () => { store.set('oppg_guide_g', '1'); renderGuests(); }; }
     $('#gLinks', el).onclick = showRsvpLinks;
+    $('#gFood', el).onclick = showFood;
     $('#gInv', el).onclick = editInvite;
     $('#gFil', el).onchange = e => { gFilter = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
     bindGuestRows($('#gList', el));
@@ -1091,6 +1094,8 @@ function editGuest(id) {
     <div class="field"><input class="titlein" id="eN" value="${esc(g.navn)}" maxlength="100" aria-label="Navn"></div>
     <div class="two"><div class="field"><label>Antall personer</label><input id="eA" type="number" min="1" max="50" value="${g.antall}"></div>
     <div class="field"><label>Svar</label><select id="eS">${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${g.status === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select></div></div>
+    <div class="two"><div class="field"><label>Matvalg</label>${(() => { const mn = ((boards.find(x => x.id === boardId) || {}).arr_meny || '').split('\n').map(x => x.trim()).filter(Boolean); return mn.length ? `<select id="eMv"><option value="">Ikke valgt</option>${mn.map(x => `<option ${g.matvalg === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}${g.matvalg && !mn.includes(g.matvalg) ? `<option selected>${esc(g.matvalg)}</option>` : ''}</select>` : `<input id="eMv" maxlength="60" value="${esc(g.matvalg || '')}" placeholder="Valgfritt">`; })()}</div>
+    <div class="field"><label>Allergier</label><input id="eAl" maxlength="300" value="${esc(g.allergier || '')}" placeholder="Valgfritt"></div></div>
     <div class="field"><label>Gruppe</label><select id="eG"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${g.gruppe_id === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}<option value="__new">+ Ny gruppe …</option></select></div>
     <div class="field"><label>Bord</label><select id="eB"><option value="">Ikke plassert</option>${tables.map(t => `<option value="${t.id}" ${g.bord_id === t.id ? 'selected' : ''}>${esc(t.navn)} (${seatsUsed(t.id)}/${t.plasser})</option>`).join('')}</select></div>
     <div class="field"><label>Relasjoner</label>${relsOf(g.id).map(r => { const o = relOther(r, g.id); return `<div class="check"><span>${RELT[r.type].i} ${esc(o ? o.navn : '?')} <small style="color:var(--muted)">${RELT[r.type].n.toLowerCase()}</small></span><button type="button" data-rd="${r.id}" aria-label="Fjern">✕</button></div>`; }).join('')}
@@ -1106,6 +1111,8 @@ function editGuest(id) {
   if (g.bilde_sti) $('#eAv img', m).onclick = () => viewPhoto(pubUrl(g.bilde_sti));
   $('#eN', m).onchange = e => { const v = e.target.value.trim(); if (v) saveGuest(id, { navn: v }); else e.target.value = g.navn; };
   $('#eA', m).onchange = e => saveGuest(id, { antall: Math.min(50, Math.max(1, +e.target.value || 1)) });
+  $('#eMv', m).onchange = e => saveGuest(id, { matvalg: e.target.value.trim() || null });
+  $('#eAl', m).onchange = e => saveGuest(id, { allergier: e.target.value.trim() || null });
   $('#eS', m).onchange = e => { saveGuest(id, { status: e.target.value }); if (e.target.value === 'kommer_ikke') $('#eB', m).value = ''; };
   $('#eG', m).onchange = async e => {
     if (e.target.value !== '__new') return saveGuest(id, { gruppe_id: e.target.value || null });
@@ -1232,13 +1239,14 @@ function editInvite() {
     <div class="two"><div class="field"><label>Dato</label><input id="ivD" type="date" value="${esc(b.arr_dato || '')}"></div><div class="field"><label>Klokkeslett</label><input id="ivT" type="time" value="${esc(b.arr_tid || '')}"></div></div>
     <div class="field"><label>Sted</label><input id="ivS" value="${esc(b.arr_sted || '')}" placeholder="F.eks. Folkets hus, Bodø" maxlength="120"></div>
     <div class="field"><label>Svar innen</label><input id="ivF2" type="date" value="${esc(b.arr_frist || '')}"></div>
+    <div class="field"><label>Matvalg gjestene kan velge mellom (ett per linje, valgfritt)</label><textarea id="ivM" maxlength="300" placeholder="Kjøtt&#10;Fisk&#10;Vegetar" style="min-height:70px">${esc(b.arr_meny || '')}</textarea></div>
     <div class="field"><label>Hilsen / informasjon</label><textarea id="ivX" maxlength="800" placeholder="Hei! Vi gleder oss til å feire sammen med dere …" style="min-height:110px">${esc(b.arr_tekst || '')}</textarea></div>
     <div class="err" id="ivE"></div><div class="bar"><button type="button" class="btn" id="ivC">Avbryt</button><button class="btn primary">Lagre</button></div></form>`);
   $('#ivC', m).onclick = closeModal;
   $('#ivF', m).onsubmit = async e => {
     e.preventDefault();
     const v = id => $(id, m).value.trim() || null;
-    const patch = { arr_navn: v('#ivN'), arr_dato: v('#ivD'), arr_tid: v('#ivT'), arr_sted: v('#ivS'), arr_frist: v('#ivF2'), arr_tekst: v('#ivX') };
+    const patch = { arr_navn: v('#ivN'), arr_dato: v('#ivD'), arr_tid: v('#ivT'), arr_sted: v('#ivS'), arr_frist: v('#ivF2'), arr_tekst: v('#ivX'), arr_meny: ($('#ivM', m).value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 8).join('\n') || null) };
     const { error } = await sb.from('oppg_tavler').update(patch).eq('id', boardId);
     if (error) { $('#ivE', m).textContent = error.message; return; }
     Object.assign(b, patch); closeModal(); toast('Invitasjonen er lagret');
@@ -1273,7 +1281,7 @@ const TOUR_GUESTS = [
 ];
 const TOUR_INVITE = [
   { sel: '#gInv', title: '1. Fyll ut invitasjonen', text: 'Trykk her og skriv tittel, dato, klokkeslett, sted, svarfrist og en hilsen. Dette ser gjestene øverst på svarsiden og i meldingen du sender.', before: toGuests },
-  { sel: '#gLinks', title: '2. Hent svarlenkene', text: 'Trykk her og skriv inn PIN-koden din. Du får en personlig lenke til hver gjest. Lenkene kan ikke gjettes, så send hver gjest bare sin egen.' },
+  { sel: '#gLinks', title: '2. Hent svarlenkene', text: 'Trykk her. Du får en personlig lenke til hver gjest. Lenkene kan ikke gjettes, så send hver gjest bare sin egen.' },
   { title: '3. Del lenken', text: 'Trykk Del for å sende en ferdig melding på SMS, Messenger eller e-post, med dato, sted og lenke. Kopier alle gir en liste med navn og lenker du kan lime inn.' },
   { title: '4. Dette ser gjesten', text: 'Gjesten åpner lenken uten å logge inn, ser invitasjonen og velger Jeg kommer, Kanskje eller Kommer ikke. De kan velge antall personer og skrive en melding, for eksempel om allergier. Etterpå kan de legge arrangementet i kalenderen.' },
   { sel: '.gsum', title: '5. Svarene kommer inn', text: 'Når en gjest svarer, oppdateres tallene her og gjesten får riktig status automatisk. Gjester som sier at de ikke kommer, tas av bordet.' },
@@ -1349,21 +1357,40 @@ async function copyText(t) {
   try { await navigator.clipboard.writeText(t); return true; } catch {}
   try { const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok; } catch { return false; }
 }
+function showFood() {
+  const coming = guests.filter(g => g.status === 'kommer' || g.status === 'kanskje');
+  const by = {}; let none = 0;
+  coming.forEach(g => { if (g.matvalg) by[g.matvalg] = (by[g.matvalg] || 0) + g.antall; else none += g.antall; });
+  const al = guests.filter(g => g.allergier && g.status !== 'kommer_ikke').sort((a, b) => a.navn.localeCompare(b.navn, 'nb'));
+  const txt = [...Object.entries(by).map(([k, v]) => `${k}: ${v}`), none ? `Ikke valgt: ${none}` : '', al.length ? '\nAllergier:' : '', ...al.map(g => `${g.navn} (${g.antall}): ${g.allergier}`)].filter(x => x !== '').join('\n');
+  const m = showModal(`<h2>Matvalg og allergier</h2><p style="color:var(--muted);margin:0 0 10px;font-size:13px">Teller gjester som har svart kommer eller kanskje. Matvalget gjelder hele følget.</p>
+    ${Object.entries(by).map(([k, v]) => `<div class="check"><span>${esc(k)}</span><b>${v}</b></div>`).join('') || '<p style="color:var(--muted)">Ingen har valgt mat ennå. Legg inn valg under Invitasjon.</p>'}
+    ${none ? `<div class="check"><span style="color:var(--muted)">Ikke valgt</span><b>${none}</b></div>` : ''}
+    <h3 style="margin:14px 0 6px;font-size:15px">Allergier og kostholdsbehov</h3>
+    ${al.map(g => `<div class="check"><span><b>${esc(g.navn)}</b> (${g.antall}) <small style="color:var(--muted)">${esc(g.allergier)}</small></span></div>`).join('') || '<p style="color:var(--muted)">Ingen har oppgitt noe.</p>'}
+    <div class="bar"><button type="button" class="btn" id="fdX">Lukk</button><button type="button" class="btn primary" id="fdC">Kopier til kokken</button></div>`);
+  $('#fdX', m).onclick = closeModal;
+  $('#fdC', m).onclick = async () => toast(await copyText(txt) ? 'Kopiert' : 'Kunne ikke kopiere');
+}
 function showRsvpLinks() {
   if (!guests.length) return toast('Legg til gjester først');
   const m = showModal('<h2>Svarlenker</h2>');
   const renderLinks = data => {
     const tok = Object.fromEntries((data || []).map(r => [r.gjest_id, r.token]));
-    const rows = guests.slice().sort((a, b) => a.navn.localeCompare(b.navn, 'nb')).filter(g => tok[g.id]);
+    const miss = renderLinks.miss, nMiss = guests.filter(g => tok[g.id] && g.status === 'venter').length;
+    const rows = guests.slice().sort((a, b) => a.navn.localeCompare(b.navn, 'nb')).filter(g => tok[g.id] && (!miss || g.status === 'venter'));
     const url = g => rsvpBase() + tok[g.id];
     const b = boards.find(x => x.id === boardId);
     const ev = (b && (b.arr_navn || b.navn)) || 'arrangementet', when = b && b.arr_dato ? ` ${fmtDato(b.arr_dato)}${b.arr_tid ? ' kl. ' + b.arr_tid : ''}` : '';
-    const msg = g => `Hei ${g.navn.split(' ')[0]}! Du er invitert til ${ev}${when}${b && b.arr_sted ? ' (' + b.arr_sted + ')' : ''}. Svar her: ${url(g)}`;
+    const frist = b && b.arr_frist ? ` innen ${fmtDato(b.arr_frist).toLowerCase()}` : '';
+    const msg = g => miss ? `Hei ${g.navn.split(' ')[0]}! Vi har ikke hørt fra deg om ${ev} ennå. Kan du svare${frist}? Svar her: ${url(g)}` : `Hei ${g.navn.split(' ')[0]}! Du er invitert til ${ev}${when}${b && b.arr_sted ? ' (' + b.arr_sted + ')' : ''}. Svar her: ${url(g)}`;
     m.innerHTML = `<h2>Svarlenker</h2><p style="color:var(--muted);margin:0 0 8px;font-size:13px">Send hver gjest sin egen lenke. Ikke del lenkene åpent.</p>
-      <div class="photobtns" style="margin-bottom:10px"><button class="btn" id="rlAll">Kopier alle (navn og lenke)</button><button class="btn" id="rlClose">Lukk</button></div>
+      <div class="photobtns" style="margin-bottom:8px"><button class="btn${miss ? ' primary' : ''}" id="rlMiss">${miss ? 'Viser: uten svar' : 'Bare de uten svar'} (${nMiss})</button></div>
+      <div class="photobtns" style="margin-bottom:10px"><button class="btn" id="rlAll">${miss ? 'Kopier påminnelser til alle' : 'Kopier alle (navn og lenke)'}</button><button class="btn" id="rlClose">Lukk</button></div>
       <div style="max-height:52vh;overflow:auto">${rows.map(g => `<div class="grw" style="margin-bottom:6px"><span class="gdot" style="background:${GST[g.status].c}" title="${GST[g.status].n}"></span><div class="gname" style="cursor:default">${esc(g.navn)}<small>${GST[g.status].n}${g.svar_tid ? ' ✉' : ''}</small></div><button class="btn" data-rc="${g.id}">Kopier</button><button class="btn" data-rs="${g.id}">Del</button></div>`).join('')}</div>`;
     $('#rlClose', m).onclick = closeModal;
-    $('#rlAll', m).onclick = async () => toast(await copyText(rows.map(g => `${g.navn}: ${url(g)}`).join('\n')) ? 'Alle lenkene er kopiert' : 'Kunne ikke kopiere');
+    $('#rlMiss', m).onclick = () => { renderLinks.miss = !renderLinks.miss; renderLinks(data); };
+    $('#rlAll', m).onclick = async () => toast(await copyText(rows.map(g => miss ? `${g.navn}: ${msg(g)}` : `${g.navn}: ${url(g)}`).join('\n\n')) ? (miss ? 'Påminnelsene er kopiert' : 'Alle lenkene er kopiert') : 'Kunne ikke kopiere');
     m.querySelectorAll('[data-rc]').forEach(x => x.onclick = async () => { const g = guests.find(y => y.id === x.dataset.rc); toast(await copyText(msg(g)) ? 'Melding med lenke kopiert' : 'Kunne ikke kopiere'); });
     m.querySelectorAll('[data-rs]').forEach(x => x.onclick = async () => { const g = guests.find(y => y.id === x.dataset.rs); if (navigator.share) { try { await navigator.share({ text: msg(g) }); } catch {} } else toast(await copyText(msg(g)) ? 'Melding med lenke kopiert' : 'Kunne ikke kopiere'); });
   };
@@ -1377,9 +1404,11 @@ async function showRsvp(token) {
   document.title = 'Svar på invitasjon';
   $('#app').classList.add('hidden'); const box = $('#login'); box.classList.remove('hidden');
   box.innerHTML = '<div class="lbox"><p>Laster …</p></div>';
-  const { data, error } = await sb.rpc('oppg_rsvp_hent2', { p_token: token });
+  let { data, error } = await sb.rpc('oppg_rsvp_hent3', { p_token: token });
+  if (error) ({ data, error } = await sb.rpc('oppg_rsvp_hent2', { p_token: token }));
   if (error || !data || !data.length) { box.innerHTML = '<div class="lbox"><h1>Ugyldig lenke</h1><p>Lenken finnes ikke lenger. Be arrangøren om en ny.</p></div>'; return; }
-  const g = data[0]; let st = g.status === 'venter' ? '' : g.status, n = g.antall, msg = g.melding || '';
+  const g = data[0]; let st = g.status === 'venter' ? '' : g.status, n = g.antall, msg = g.melding || '', mv = g.matvalg || '', al = g.allergier || '';
+  const MENY = (g.arr_meny || '').split('\n').map(x => x.trim()).filter(Boolean);
   const ST = { kommer: '✔ Jeg kommer', kanskje: '? Kanskje', kommer_ikke: '✖ Kommer ikke' };
   const draw = () => {
     box.innerHTML = `<div class="lbox"><h1>Hei ${esc(g.navn.split(' ')[0])}!</h1><p>Du er invitert til <b>${esc(g.arr_navn || g.tavle_navn)}</b></p>
@@ -1387,13 +1416,17 @@ async function showRsvp(token) {
       <div class="rsvpq">Kommer du?</div>
       <div class="rsvpbtns">${Object.entries(ST).map(([k, v]) => `<button type="button" class="${k} ${st === k ? 'sel' : ''}" data-st="${k}">${v}</button>`).join('')}</div>
       ${st && st !== 'kommer_ikke' ? `<div class="rsvpq">Hvor mange kommer?</div><div class="stepper"><button type="button" class="btn" id="rMin" aria-label="Færre">−</button><b>${n}</b><button type="button" class="btn" id="rPlu" aria-label="Flere">+</button></div>` : ''}
-      <div class="field"><label>Melding (allergier, noe vi bør vite …)</label><textarea id="rMsg" maxlength="300" placeholder="Valgfritt">${esc(msg)}</textarea></div>
+      ${st && st !== 'kommer_ikke' && MENY.length ? `<div class="rsvpq">Matvalg</div><div class="rsvpbtns">${MENY.map((x, i) => `<button type="button" class="${mv === x ? 'sel' : ''}" data-mv="${i}">${esc(x)}</button>`).join('')}</div>` : ''}
+      ${st && st !== 'kommer_ikke' ? `<div class="field"><label>Allergier eller kostholdsbehov</label><input id="rAl" maxlength="300" placeholder="F.eks. nøtter, gluten, vegetar" value="${esc(al)}"></div>` : ''}
+      <div class="field"><label>Melding (noe vi bør vite …)</label><textarea id="rMsg" maxlength="300" placeholder="Valgfritt">${esc(msg)}</textarea></div>
       <div class="err" id="rErr"></div><button class="btn primary" id="rSend" style="width:100%" ${st ? '' : 'disabled'}>Send svar</button></div>`;
-    box.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { msg = $('#rMsg', box).value; st = b.dataset.st; draw(); });
-    if ($('#rMin', box)) { $('#rMin', box).onclick = () => { msg = $('#rMsg', box).value; n = Math.max(1, n - 1); draw(); }; $('#rPlu', box).onclick = () => { msg = $('#rMsg', box).value; n = Math.min(20, n + 1); draw(); }; }
+    const keep = () => { msg = $('#rMsg', box).value; if ($('#rAl', box)) al = $('#rAl', box).value; };
+    box.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { keep(); st = b.dataset.st; draw(); });
+    box.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { keep(); mv = MENY[+b.dataset.mv]; draw(); });
+    if ($('#rMin', box)) { $('#rMin', box).onclick = () => { keep(); n = Math.max(1, n - 1); draw(); }; $('#rPlu', box).onclick = () => { keep(); n = Math.min(20, n + 1); draw(); }; }
     $('#rSend', box).onclick = async () => {
-      msg = $('#rMsg', box).value;
-      const r = await sb.rpc('oppg_rsvp_svar', { p_token: token, p_status: st, p_antall: st === 'kommer_ikke' ? null : n, p_melding: msg });
+      keep(); const gone = st === 'kommer_ikke';
+      const r = await sb.rpc('oppg_rsvp_svar2', { p_token: token, p_status: st, p_antall: gone ? null : n, p_melding: msg, p_matvalg: gone ? null : mv, p_allergier: gone ? null : al });
       if (r.error || r.data !== true) { $('#rErr', box).textContent = 'Kunne ikke sende svaret. Prøv igjen.'; return; }
       box.innerHTML = `<div class="lbox rsvpdone"><div class="big">${st === 'kommer' ? '🎉' : st === 'kanskje' ? '👍' : '👋'}</div><h1>Takk, ${esc(g.navn.split(' ')[0])}!</h1><p>${st === 'kommer' ? `Vi gleder oss! Du har svart at du kommer${n > 1 ? ` (${n} personer)` : ''}.` : st === 'kanskje' ? 'Du har svart kanskje. Gi gjerne beskjed når du vet mer.' : 'Synd at du ikke kan komme. Takk for beskjed.'}</p>${st !== 'kommer_ikke' && g.arr_dato ? '<button class="btn" id="rIcs" style="width:100%;margin-bottom:8px">📅 Legg i kalender</button>' : ''}<button class="btn" id="rAgain" style="width:100%">Endre svar</button></div>`;
       $('#rAgain', box).onclick = draw;
