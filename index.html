@@ -428,7 +428,7 @@ function showAuthLogin(prefill) {
     const email = $('#aeE', box).value.trim().toLowerCase(), btn = $('#aeF button', box); btn.disabled = true;
     const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
     btn.disabled = false;
-    if (error) { $('#err', box).textContent = /rate|limit|seconds/i.test(error.message) ? 'For mange forsøk. Vent litt og prøv igjen.' : error.message; return; }
+    if (error) { $('#err', box).textContent = /rate|limit|seconds/i.test(error.message) ? 'For mange forsøk. Vent litt og prøv igjen.' : /sending|not authorized|smtp|mail/i.test(error.message) ? 'Vi klarte ikke å sende koden til denne e-postadressen akkurat nå. Sjekk at adressen er skrevet riktig, prøv igjen om litt, eller be eieren om hjelp.' : error.message; console.error(error); return; }
     showAuthCode(email);
   };
 }
