@@ -11,6 +11,12 @@
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Orgit">
+<meta property="og:title" content="Orgit – du er invitert">
+<meta property="og:description" content="Trykk på lenken for å svare på invitasjonen. Det tar ti sekunder.">
+<meta property="og:image" content="https://orgit.netlify.app/icons/icon-512.png">
+<meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#12b76a">
 <style>
 :root{
@@ -212,6 +218,17 @@ body.dragging #board{scroll-snap-type:none}
 @media (min-width:700px){#dots{display:none}}
 /* Svarside for gjester */
 .rsvpq{font-size:18px;font-weight:600;margin:0 0 12px}
+.rlstat{font-size:14px;margin:0 0 8px;padding:8px 10px;background:var(--col);border-radius:10px}
+.rlrow{background:var(--surface);border-radius:12px;padding:8px 10px;margin-bottom:8px;border-left:4px solid var(--line)}
+.rlrow.sent{border-left-color:#12b76a}
+.rltop{display:flex;align-items:center;gap:8px}
+.rltop .gname{flex:1;min-width:0}
+.rlbadges{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.sentbadge{font-size:11px;font-weight:700;color:#067647;background:#d1fadf;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.sentbadge.no{color:var(--muted);background:var(--col);font-weight:600}
+.sentbadge.rem{color:#93370d;background:#fef0c7}
+.rlbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.rlbtns .btn{padding:7px 10px;font-size:13px;min-height:36px}
 .rsvpbtns{display:grid;gap:8px;margin-bottom:14px}
 .rsvpbtns button{padding:14px;border-radius:12px;border:2px solid var(--line);background:var(--surface);font-size:16px;font-weight:600;text-align:left}
 .rsvpbtns button.sel.kommer{background:#12b76a;border-color:#12b76a;color:#fff}
@@ -1000,7 +1017,7 @@ function closeGuests() { guestsOpen = false; const el = $('#guests'); el.classLi
 function gGuestHtml(g) {
   const st = GST[g.status];
   return `<div class="grw" data-g="${g.id}" title="${st.n}">${gAv(g)}
-    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}${relsOf(g.id).length ? `<small>${relsOf(g.id).map(r => RELT[r.type].i).join('')}</small>` : ''}${gConf.has(g.id) ? '<small title="Relasjonsbrudd">⚠</small>' : ''}${g.svar_tid ? '<small title="Svarte selv">✉</small>' : ''}${g.status !== 'kommer_ikke' ? `<div><button type="button" class="gtb ${g.bord_id ? 'set' : ''}" data-gtb="${g.id}">🪑 ${g.bord_id ? esc(tName(g.bord_id)) : 'Velg bord'}</button></div>` : ''}</div>
+    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}${relsOf(g.id).length ? `<small>${relsOf(g.id).map(r => RELT[r.type].i).join('')}</small>` : ''}${gConf.has(g.id) ? '<small title="Relasjonsbrudd">⚠</small>' : ''}${g.invitert_tid && !g.svar_tid ? '<small class="sentbadge" title="Invitasjon sendt">📨 sendt</small>' : ''}${g.svar_tid ? '<small title="Svarte selv">✉</small>' : ''}${g.status !== 'kommer_ikke' ? `<div><button type="button" class="gtb ${g.bord_id ? 'set' : ''}" data-gtb="${g.id}">🪑 ${g.bord_id ? esc(tName(g.bord_id)) : 'Velg bord'}</button></div>` : ''}</div>
     <button class="gbtn yes ${g.status === 'kommer' ? 'sel' : ''}" data-gs="kommer" data-id="${g.id}" aria-label="Kommer">✔</button>
     <button class="gbtn no ${g.status === 'kommer_ikke' ? 'sel' : ''}" data-gs="kommer_ikke" data-id="${g.id}" aria-label="Kommer ikke">✖</button></div>`;
 }
@@ -1023,7 +1040,7 @@ function renderGuests() {
   const issues = relIssues(); gConf = new Set(issues.flatMap(i => [i.a.id, i.b.id]));
   const b = boards.find(x => x.id === boardId);
   const total = guests.reduce((n, g) => n + g.antall, 0);
-  const sum = `<div class="gsum">${Object.entries(GST).map(([k, v]) => `<span class="chip" style="background:${v.c}">${v.n} ${sumBy(k)}</span>`).join('')}<span class="chip" style="background:var(--muted);color:#fff">Totalt ${total}</span></div>`;
+  const sum = `<div class="gsum">${Object.entries(GST).map(([k, v]) => `<span class="chip" style="background:${v.c}">${v.n} ${sumBy(k)}</span>`).join('')}<span class="chip" style="background:var(--muted);color:#fff">Totalt ${total}</span>${guests.length ? `<span class="chip" style="background:#067647" title="Invitasjon sendt">Invitert ${guests.filter(g => g.invitert_tid).length}/${guests.length}</span>` : ''}</div>`;
   const gsum = groups.length ? `<div class="gsum">${groups.map(x => `<span class="chip" style="background:${esc(x.farge)}">${esc(x.navn)} ${guests.filter(g => g.gruppe_id === x.id).reduce((n, g) => n + g.antall, 0)}</span>`).join('')}</div>` : '';
   let body;
   if (gTab === 'liste') {
@@ -1396,24 +1413,42 @@ function showFood() {
 function showRsvpLinks() {
   if (!guests.length) return toast('Legg til gjester først');
   const m = showModal('<h2>Svarlenker</h2>');
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const fmtK = t => new Date(t).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' });
   const renderLinks = data => {
     const tok = Object.fromEntries((data || []).map(r => [r.gjest_id, r.token]));
-    const miss = renderLinks.miss, nMiss = guests.filter(g => tok[g.id] && g.status === 'venter').length;
-    const rows = guests.slice().sort((a, b) => a.navn.localeCompare(b.navn, 'nb')).filter(g => tok[g.id] && (!miss || g.status === 'venter'));
+    const mode = renderLinks.mode || 'alle', miss = mode === 'miss';
+    const withTok = guests.filter(g => tok[g.id]);
+    const nMiss = withTok.filter(g => g.status === 'venter').length, nNot = withTok.filter(g => !g.invitert_tid).length, nSent = withTok.length - nNot;
+    const rows = withTok.slice().sort((a, b) => a.navn.localeCompare(b.navn, 'nb')).filter(g => mode === 'alle' || (miss ? g.status === 'venter' : !g.invitert_tid));
     const url = g => rsvpBase() + tok[g.id];
     const b = boards.find(x => x.id === boardId);
     const ev = (b && (b.arr_navn || b.navn)) || 'arrangementet', when = b && b.arr_dato ? ` ${fmtDato(b.arr_dato)}${b.arr_tid ? ' kl. ' + b.arr_tid : ''}` : '';
     const frist = b && b.arr_frist ? ` innen ${fmtDato(b.arr_frist).toLowerCase()}` : '';
     const msg = g => miss ? `Hei ${g.navn.split(' ')[0]}! Vi har ikke hørt fra deg om ${ev} ennå. Kan du svare${frist}? Svar her: ${url(g)}` : `Hei ${g.navn.split(' ')[0]}! Du er invitert til ${ev}${when}${b && b.arr_sted ? ' (' + b.arr_sted + ')' : ''}. Svar her: ${url(g)}`;
-    m.innerHTML = `<h2>Svarlenker</h2><p style="color:var(--muted);margin:0 0 8px;font-size:13px">Send hver gjest sin egen lenke. Ikke del lenkene åpent.</p>
-      <div class="photobtns" style="margin-bottom:8px"><button class="btn${miss ? ' primary' : ''}" id="rlMiss">${miss ? 'Viser: uten svar' : 'Bare de uten svar'} (${nMiss})</button></div>
-      <div class="photobtns" style="margin-bottom:10px"><button class="btn" id="rlAll">${miss ? 'Kopier påminnelser til alle' : 'Kopier alle (navn og lenke)'}</button><button class="btn" id="rlClose">Lukk</button></div>
-      <div style="max-height:52vh;overflow:auto">${rows.map(g => `<div class="grw" style="margin-bottom:6px"><span class="gdot" style="background:${GST[g.status].c}" title="${GST[g.status].n}"></span><div class="gname" style="cursor:default">${esc(g.navn)}<small>${GST[g.status].n}${g.svar_tid ? ' ✉' : ''}</small></div><button class="btn" data-rc="${g.id}">Kopier</button><button class="btn" data-rs="${g.id}">Del</button></div>`).join('')}</div>`;
+    const mark = g => { saveGuest(g.id, miss ? { paminnet_tid: new Date().toISOString() } : { invitert_tid: new Date().toISOString() }); };
+    const badge = g => { const parts = []; if (g.invitert_tid) parts.push(`<span class="sentbadge">✓ Invitert ${fmtK(g.invitert_tid)}</span>`); else parts.push('<span class="sentbadge no">Ikke invitert</span>'); if (g.paminnet_tid) parts.push(`<span class="sentbadge rem">🔔 Påminnet ${fmtK(g.paminnet_tid)}</span>`); return parts.join(''); };
+    const tab = (k, t) => `<button class="btn${mode === k ? ' primary' : ''}" data-rlm="${k}">${t}</button>`;
+    m.innerHTML = `<h2>Svarlenker</h2><p style="color:var(--muted);margin:0 0 8px;font-size:13px">Send hver gjest sin egen lenke. Ikke del lenkene åpent. Når du trykker på en av sende-knappene, merkes gjesten som ${miss ? 'påminnet' : 'invitert'}.</p>
+      <div class="rlstat"><b>${nSent} av ${withTok.length}</b> er invitert · <b>${withTok.length - nMiss}</b> har svart</div>
+      <div class="photobtns" style="margin-bottom:8px">${tab('alle', 'Alle (' + withTok.length + ')')}${tab('ikke', 'Ikke invitert (' + nNot + ')')}${tab('miss', 'Uten svar (' + nMiss + ')')}</div>
+      <div class="photobtns" style="margin-bottom:10px"><button class="btn" id="rlAll">${miss ? 'Kopier påminnelser' : 'Kopier alle'}</button><button class="btn" id="rlMark">Merk viste som ${miss ? 'påminnet' : 'invitert'}</button><button class="btn" id="rlClose">Lukk</button></div>
+      <div style="max-height:50vh;overflow:auto">${rows.map(g => `<div class="rlrow ${g.invitert_tid ? 'sent' : ''}"><div class="rltop"><span class="gdot" style="background:${GST[g.status].c}" title="${GST[g.status].n}"></span><div class="gname" style="cursor:default">${esc(g.navn)}<small>${GST[g.status].n}${g.svar_tid ? ' ✉' : ''}</small></div><div class="rlbadges">${badge(g)}</div></div>
+        <div class="rlbtns"><button class="btn" data-k="copy" data-id="${g.id}">Kopier</button><button class="btn" data-k="share" data-id="${g.id}">Del</button>${mobile ? `<button class="btn" data-k="msgr" data-id="${g.id}">Messenger</button>` : ''}<button class="btn" data-k="wa" data-id="${g.id}">WhatsApp</button><button class="btn" data-k="sms" data-id="${g.id}">SMS</button>${g.invitert_tid || g.paminnet_tid ? `<button class="btn" data-k="undo" data-id="${g.id}" title="Fjern markering">↩︎</button>` : ''}</div></div>`).join('') || '<p style="color:var(--muted)">Ingen gjester i denne visningen.</p>'}</div>`;
     $('#rlClose', m).onclick = closeModal;
-    $('#rlMiss', m).onclick = () => { renderLinks.miss = !renderLinks.miss; renderLinks(data); };
+    m.querySelectorAll('[data-rlm]').forEach(x => x.onclick = () => { renderLinks.mode = x.dataset.rlm; renderLinks(data); });
     $('#rlAll', m).onclick = async () => toast(await copyText(rows.map(g => miss ? `${g.navn}: ${msg(g)}` : `${g.navn}: ${url(g)}`).join('\n\n')) ? (miss ? 'Påminnelsene er kopiert' : 'Alle lenkene er kopiert') : 'Kunne ikke kopiere');
-    m.querySelectorAll('[data-rc]').forEach(x => x.onclick = async () => { const g = guests.find(y => y.id === x.dataset.rc); toast(await copyText(msg(g)) ? 'Melding med lenke kopiert' : 'Kunne ikke kopiere'); });
-    m.querySelectorAll('[data-rs]').forEach(x => x.onclick = async () => { const g = guests.find(y => y.id === x.dataset.rs); if (navigator.share) { try { await navigator.share({ text: msg(g) }); } catch {} } else toast(await copyText(msg(g)) ? 'Melding med lenke kopiert' : 'Kunne ikke kopiere'); });
+    $('#rlMark', m).onclick = () => { if (!rows.length) return; if (!confirm(`Merke ${rows.length} gjester som ${miss ? 'påminnet' : 'invitert'}?`)) return; rows.forEach(mark); renderLinks(data); };
+    m.querySelectorAll('[data-k]').forEach(x => x.onclick = async () => {
+      const g = guests.find(y => y.id === x.dataset.id), k = x.dataset.k, text = msg(g), enc = encodeURIComponent;
+      if (k === 'undo') { saveGuest(g.id, miss ? { paminnet_tid: null } : { invitert_tid: null, paminnet_tid: null }); return renderLinks(data); }
+      if (k === 'copy') { if (!await copyText(text)) return toast('Kunne ikke kopiere'); toast('Melding med lenke kopiert'); }
+      else if (k === 'share') { if (navigator.share) { try { await navigator.share({ text }); } catch { return; } } else if (!await copyText(text)) return toast('Kunne ikke dele'); else toast('Melding med lenke kopiert'); }
+      else if (k === 'msgr') location.href = 'fb-messenger://share/?link=' + enc(url(g));
+      else if (k === 'wa') window.open('https://wa.me/?text=' + enc(text), '_blank', 'noopener');
+      else if (k === 'sms') location.href = 'sms:?&body=' + enc(text);
+      mark(g); renderLinks(data);
+    });
   };
   if (authMode) {
     m.innerHTML = '<h2>Svarlenker</h2><p style="color:var(--muted)">Henter lenker …</p>';
