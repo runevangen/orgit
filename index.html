@@ -329,6 +329,14 @@ body.noscroll{overflow:hidden}
 .invbox .frist{margin-top:8px;color:var(--muted);font-size:13px}
 .gtb{display:inline-block;border:1px dashed var(--line);background:transparent;border-radius:6px;padding:1px 8px;font-size:12px;color:var(--muted);margin-top:4px;cursor:pointer}
 .gtb.set{background:var(--col);border-style:solid;color:var(--text)}
+.pendbox{background:#fff7e0;border:2px solid #e5b400;border-radius:14px;padding:10px 12px;margin-bottom:12px}
+.pendbox p{margin:4px 0 8px;font-size:13px;color:var(--muted)}
+.pendrow{background:var(--surface);border-radius:12px;padding:9px 10px;margin-bottom:8px}
+.pendrow .pn{display:flex;flex-direction:column;margin-bottom:6px}.pendrow small{color:var(--muted)}
+.pmerge{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}.pmerge .btn{text-align:left;padding:8px 10px;font-size:14px}
+.pbtns{display:flex;gap:8px}.pbtns .btn{flex:1;padding:8px}
+#guestBtn{position:relative}
+#guestBtn[data-n]:not([data-n=""])::after{content:attr(data-n);position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 4px}
 .chint{display:block;color:#b42318;font-size:12px;font-weight:600;margin:2px 0 0!important}
 .gseat.gdroptarget{outline:3px solid var(--accent)!important;outline-offset:2px;border-radius:50%;background:rgba(79,124,255,.18)!important}
 .gdroptarget{outline:3px solid var(--accent)!important;outline-offset:-3px;background:rgba(79,124,255,.10)!important}
@@ -468,6 +476,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
+let pending = [];
 let gSort = (function () { try { return localStorage.getItem('oppg_gsort') || 'navn'; } catch (e) { return 'navn'; } })(), authMode = false, authUid = null, elements = [], gScale = (window.innerWidth >= 1000 ? 1.3 : 1), relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -662,7 +671,7 @@ async function loadBoard() {
     sb.from('oppg_elementer').select('*').eq('tavle_id', boardId).order('opprettet')
   ]);
   if (fail(c.error) || fail(k.error)) return;
-  if (!g.error) guests = g.data || []; if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || []; if (!el.error) elements = el.data || [];
+  if (!g.error) { const allG = g.data || []; guests = allG.filter(x => x.godkjent !== false); pending = allG.filter(x => x.godkjent === false); } if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || []; if (!el.error) elements = el.data || [];
   const allCols = c.data || []; cols = allCols.filter(x => !x.arkivert); archCols = allCols.filter(x => x.arkivert); cards = k.data || [];
   if (authMode) await loadUsers();
   await loadActivity(); await loadFiles(); await signBoardImages();
@@ -804,6 +813,7 @@ function matches(c, isLast, today) {
 
 /* ---------- Visning ---------- */
 function render() {
+  { const gb = $('#guestBtn'); if (gb) gb.dataset.n = pending.length ? String(pending.length) : ''; }
   const b = boards.find(x => x.id === boardId);
   $('#boardBtn').textContent = (b ? b.navn : 'Tavle') + ' ▾';
   $('#mineBtn').classList.toggle('on', onlyMine);
@@ -1115,6 +1125,41 @@ function gGuestHtml(g) {
     <button class="gbtn yes ${g.status === 'kommer' ? 'sel' : ''}" data-gs="kommer" data-id="${g.id}" aria-label="Kommer">✔</button>
     <button class="gbtn no ${g.status === 'kommer_ikke' ? 'sel' : ''}" data-gs="kommer_ikke" data-id="${g.id}" aria-label="Kommer ikke">✖</button></div>`;
 }
+function nameNorm(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zæøå0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function lev(a, b) { const m = a.length, n = b.length; if (!m || !n) return Math.max(m, n); let prev = Array.from({ length: n + 1 }, (_, j) => j); for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; }
+function similarGuests(p) {
+  const a = nameNorm(p.navn), at = a.split(' ');
+  return guests.map(g => { const b = nameNorm(g.navn), bt = b.split(' '); let sc = 0;
+    if (a === b) sc = 100; else if (lev(a, b) <= Math.max(2, Math.round(b.length * 0.2))) sc = 80;
+    else if (b.startsWith(a) || a.startsWith(b)) sc = 70;
+    else if (at[0] === bt[0] && (at.length < 2 || bt.length < 2 || at[at.length - 1][0] === bt[bt.length - 1][0] || lev(at[at.length - 1], bt[bt.length - 1]) <= 2)) sc = 60;
+    else if (at[at.length - 1] === bt[bt.length - 1] && at.length > 1 && lev(at[0], bt[0]) <= 2) sc = 50;
+    else if (at[0] === bt[0] && at[0].length > 2) sc = 30;
+    if (sc && g.status === 'venter') sc += 5; return { g, sc }; }).filter(x => x.sc >= 30).sort((x, y) => y.sc - x.sc).slice(0, 3).map(x => x.g);
+}
+function pendingHtml() {
+  if (!pending.length) return '';
+  return `<div class="pendbox"><b>🆕 Nye via felles lenke (${pending.length})</b><p>De er ikke med i tallene før du har godkjent dem. Finnes de fra før, slå dem sammen.</p>${pending.map(p => { const sim = similarGuests(p); return `<div class="pendrow"><div class="pn"><b>${esc(p.navn)}</b><small>${p.svar_tid ? `svarte ${esc(GST[p.status].n.toLowerCase())}${p.antall > 1 ? ', ' + p.antall + ' personer' : ''}` : 'har ikke svart ennå'}</small></div>
+    ${sim.length ? `<div class="pmerge">${sim.map(g => `<button type="button" class="btn" data-pm="${p.id}|${g.id}">Samme som <b>${esc(g.navn)}</b></button>`).join('')}</div>` : ''}
+    <div class="pbtns"><button type="button" class="btn primary" data-pa="${p.id}">Ny gjest</button><button type="button" class="btn" data-pd="${p.id}">Avvis</button></div></div>`; }).join('')}</div>`;
+}
+function bindPending(el) {
+  el.querySelectorAll('[data-pm]').forEach(b => b.onclick = async () => {
+    const [from, to] = b.dataset.pm.split('|'), p = pending.find(x => x.id === from), g = guests.find(x => x.id === to); if (!p || !g) return;
+    if (!confirm(`Slå sammen «${p.navn}» med «${g.navn}»? Svaret flyttes til ${g.navn}, og «${p.navn}» fjernes.`)) return;
+    const { error } = await sb.rpc('oppg_slaa_sammen', { p_fra: from, p_til: to }); if (fail(error, 'kunne ikke slå sammen')) return;
+    toast('Slått sammen'); await loadBoard();
+  });
+  el.querySelectorAll('[data-pa]').forEach(b => b.onclick = async () => {
+    const { error } = await sb.from('oppg_gjester').update({ godkjent: true }).eq('id', b.dataset.pa); if (fail(error, 'kunne ikke godkjenne')) return;
+    toast('Gjesten er lagt til'); await loadBoard();
+  });
+  el.querySelectorAll('[data-pd]').forEach(b => b.onclick = async () => {
+    const p = pending.find(x => x.id === b.dataset.pd); if (!p || !confirm(`Avvise og slette «${p.navn}»?`)) return;
+    const { error } = await sb.from('oppg_gjester').delete().eq('id', p.id); if (fail(error, 'kunne ikke slette')) return;
+    toast('Fjernet'); await loadBoard();
+  });
+}
 function gFiltered() {
   const q = gQuery.toLowerCase();
   return guests.filter(g => (!gFilter || (gFilter === 'inv' ? !!g.invitert_tid : gFilter === 'ikkeinv' ? !g.invitert_tid : g.status === gFilter)) && (!gGrp || (gGrp === 'none' ? !g.gruppe_id : g.gruppe_id === gGrp)) && (!q || g.navn.toLowerCase().includes(q) || (g.notat || '').toLowerCase().includes(q)));
@@ -1172,7 +1217,7 @@ function renderGuests() {
   const gsum = groups.length ? `<div class="gsum">${groups.map(x => `<button type="button" class="chip gchipbtn ${gGrp === x.id ? 'act' : ''}" data-gtag="${x.id}" title="${gGrp === x.id ? 'Fjern filter' : 'Vis gruppen'}" style="background:${esc(x.farge)}">${esc(x.navn)} ${guests.filter(g => g.gruppe_id === x.id).reduce((n, g) => n + g.antall, 0)}</button>`).join('')}</div>` : '';
   let body;
   if (gTab === 'liste') {
-    body = `<div class="gliste">${store.get('oppg_guide_g') ? '' : '<div class="ghint"><span>👋 Ny her? Ta en rask guide om gjester og bord.</span><button class="btn primary" id="gHintGo" type="button">Start guide</button><button class="btn" id="gHintNo" type="button">Ikke nå</button></div>'}${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
+    body = `<div class="gliste">${pendingHtml()}${store.get('oppg_guide_g') ? '' : '<div class="ghint"><span>👋 Ny her? Ta en rask guide om gjester og bord.</span><button class="btn primary" id="gHintGo" type="button">Start guide</button><button class="btn" id="gHintNo" type="button">Ikke nå</button></div>'}${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
       ${groups.length ? `<select id="gGrpNew" aria-label="Gruppe"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gNewGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>` : ''}</form>
       <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}<option value="inv" ${gFilter === 'inv' ? 'selected' : ''}>Invitert</option><option value="ikkeinv" ${gFilter === 'ikkeinv' ? 'selected' : ''}>Ikke invitert</option></select>
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>
@@ -1212,7 +1257,7 @@ function renderGuests() {
     if ($('#gHintGo', el)) { $('#gHintGo', el).onclick = () => { store.set('oppg_guide_g', '1'); startTour(TOUR_GUESTS); }; $('#gHintNo', el).onclick = () => { store.set('oppg_guide_g', '1'); renderGuests(); }; }
     $('#gSort', el).onchange = e => { gSort = e.target.value; try { localStorage.setItem('oppg_gsort', gSort); } catch (x) {} $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
     $('#gFil', el).onchange = e => { gFilter = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
-    bindGuestRows($('#gList', el)); gMarkFilters(el);
+    bindGuestRows($('#gList', el)); gMarkFilters(el); bindPending(el);
   } else if (gTab === 'kart') {
     bindKart(el);
   } else {
@@ -1836,10 +1881,10 @@ async function showFelles(token) {
         clearTimeout(timer); const q = e.target.value.trim(), res = $('#fRes', box); $('#fErr', box).textContent = '';
         if (q.length < 3) { res.innerHTML = ''; return; }
         timer = setTimeout(async () => {
-          const r = await sb.rpc('oppg_felles_sok', { p_token: token, p_q: q });
+          const r = await sb.rpc('oppg_felles_sok2', { p_token: token, p_q: q });
           if (r.error) { $('#fErr', box).textContent = /For mange/.test(r.error.message) ? 'For mange forsøk. Vent litt og prøv igjen.' : 'Noe gikk galt. Prøv igjen.'; return; }
           const list = r.data || [];
-          res.innerHTML = list.length ? list.map((x, i) => `<button type="button" data-i="${i}">${esc(x.navn)}</button>`).join('') : '<p style="color:var(--muted);margin:0">Ingen treff. Prøv en annen stavemåte, eller trykk under.</p>';
+          res.innerHTML = list.length ? list.map((x, i) => `<button type="button" data-i="${i}">${esc(x.navn)}${x.gruppe ? ` <small style="font-weight:500;opacity:.7">· ${esc(x.gruppe)}</small>` : ''}</button>`).join('') : '<p style="color:var(--muted);margin:0">Ingen treff. Prøv en annen stavemåte, eller trykk under.</p>';
           res.querySelectorAll('[data-i]').forEach(b => b.onclick = () => goto(list[+b.dataset.i].token));
         }, 300);
       };
