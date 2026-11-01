@@ -242,6 +242,8 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .kzoom .btn{padding:6px 14px;min-width:44px}
 .kwrap{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:68vh;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
 .kwrap svg{display:block;margin:0 auto}
+.khl{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.kh{pointer-events:none}
 .kn{cursor:grab}.kn.dim,.ke.dim{opacity:.18}
 .kn.sel circle{stroke-width:6}
 .klbl{fill:var(--text);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
@@ -1282,7 +1284,7 @@ function kartLayout(nodes, edges) {
       dx /= d; dy /= d; P[i].vx += dx * f; P[i].vy += dy * f; P[j].vx -= dx * f; P[j].vy -= dy * f;
     }
     E.forEach(e => { const a = P[e.i], b = P[e.j]; let dx = b.x - a.x, dy = b.y - a.y; const d = Math.sqrt(dx * dx + dy * dy) || 1, rest = e.t === 'sammen' ? 85 : 210, k = e.t === 'sammen' ? 0.05 : 0.02, f = (d - rest) * k; dx /= d; dy /= d; a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f; });
-    gl.forEach(k => { const m = nodes.map((g, i) => gk(g) === k ? i : -1).filter(i => i >= 0); if (m.length < 2) return; const cx = m.reduce((s, i) => s + P[i].x, 0) / m.length, cy = m.reduce((s, i) => s + P[i].y, 0) / m.length; m.forEach(i => { P[i].vx += (cx - P[i].x) * 0.012; P[i].vy += (cy - P[i].y) * 0.012; }); });
+    gl.forEach(k => { const m = nodes.map((g, i) => gk(g) === k ? i : -1).filter(i => i >= 0); if (m.length < 2) return; const cx = m.reduce((s, i) => s + P[i].x, 0) / m.length, cy = m.reduce((s, i) => s + P[i].y, 0) / m.length; m.forEach(i => { P[i].vx += (cx - P[i].x) * 0.03; P[i].vy += (cy - P[i].y) * 0.03; }); });
     P.forEach(p => { p.vx += (W / 2 - p.x) * 0.004; p.vy += (H / 2 - p.y) * 0.004; p.x += Math.max(-14, Math.min(14, p.vx)) * cool; p.y += Math.max(-14, Math.min(14, p.vy)) * cool; p.vx *= 0.6; p.vy *= 0.6; });
   }
   const pad = 46, minX = Math.min(...P.map(p => p.x)), maxX = Math.max(...P.map(p => p.x)), minY = Math.min(...P.map(p => p.y)), maxY = Math.max(...P.map(p => p.y));
@@ -1301,6 +1303,15 @@ function kartHtml() {
     <div class="kwrap" id="kWrap"></div><div class="kinfo" id="kInfo"></div><div class="kmiss" id="kMiss"></div>
     <div class="kgroups" id="kGroups"></div><div class="klegend"><span><i class="kl g"></i> skal sitte sammen</span><span><i class="kl r"></i> bør ikke sitte sammen</span><span><i class="ks"></i> stiplet ring = ingen relasjoner ennå</span><span><b>⚠</b> brudd i bordplanen</span><span>Ring = svar (grønn kommer, gul kanskje, grå venter)</span></div></div>`;
 }
+function kartHulls(nodes) {
+  const by = {}; nodes.forEach(g => { const k = g.gruppe_id || '_'; (by[k] = by[k] || []).push(g); });
+  return Object.entries(by).map(([k, l]) => {
+    const x = grp(k === '_' ? null : k), pts = l.map(g => kart.pos[g.id]).filter(Boolean); if (!pts.length) return '';
+    const pad = 38, minX = Math.min(...pts.map(q => q.x)) - pad, maxX = Math.max(...pts.map(q => q.x)) + pad, minY = Math.min(...pts.map(q => q.y)) - pad - 8, maxY = Math.max(...pts.map(q => q.y)) + pad + 12;
+    const c = x ? x.farge : '#98a2b3', name = x ? x.navn : 'Uten gruppe';
+    return `<g class="kh" data-kh="${k}"><rect x="${minX}" y="${minY}" width="${maxX - minX}" height="${maxY - minY}" rx="26" fill="${esc(c)}" fill-opacity=".10" stroke="${esc(c)}" stroke-opacity=".55" stroke-width="2" stroke-dasharray="${x ? '0' : '6 5'}"/><text x="${minX + 14}" y="${minY + 17}" font-size="16" font-weight="800" fill="${esc(c)}" class="khl">${esc(name)} <tspan font-weight="600" opacity=".8">${l.length}</tspan></text></g>`;
+  }).join('');
+}
 function bindKart(el) {
   const wrap = $('#kWrap', el), info = $('#kInfo', el);
   const issues = relIssues(), bad = new Set(issues.map(i => [i.a.id, i.b.id].sort().join('|')));
@@ -1314,6 +1325,7 @@ function bindKart(el) {
     const sel = kart.sel, nb = new Set(sel ? edges.filter(e => e.a.id === sel || e.b.id === sel).flatMap(e => [e.a.id, e.b.id]) : []);
     wrap.innerHTML = `<svg id="kSvg" viewBox="0 0 ${kart.W} ${kart.H}" width="${Math.round(kart.W * kart.zoom)}" height="${Math.round(kart.H * kart.zoom)}" role="img" aria-label="Relasjonskart">
       <defs>${nodes.map((g, i) => g.bilde_sti ? `<clipPath id="kc${i}"><circle r="${R - 2}"/></clipPath>` : '').join('')}</defs>
+      <g id="kHulls">${kartHulls(nodes)}</g>
       ${edges.map((e, i) => { const A = kart.pos[e.a.id], B = kart.pos[e.b.id], conflict = bad.has([e.a.id, e.b.id].sort().join('|')), dim = sel && e.a.id !== sel && e.b.id !== sel; return `<g class="ke ${dim ? 'dim' : ''}" data-ke="${i}"><line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${e.r.type === 'sammen' ? '#12b76a' : '#e5484d'}" stroke-width="${conflict ? 6 : 3}" ${e.r.type === 'sammen' ? '' : 'stroke-dasharray="7 5"'} stroke-linecap="round"/>${conflict ? `<text x="${(A.x + B.x) / 2}" y="${(A.y + B.y) / 2 + 5}" text-anchor="middle" font-size="16" class="kwarn">⚠</text>` : ''}</g>`; }).join('')}
       ${nodes.map((g, i) => { const p = kart.pos[g.id], dim = sel && g.id !== sel && !nb.has(g.id), solo = !relsOf(g.id).length; return `<g class="kn ${dim ? 'dim' : ''} ${g.id === sel ? 'sel' : ''} ${solo ? 'solo' : ''}" data-kn="${g.id}" transform="translate(${p.x},${p.y})">${solo ? `<circle r="${R + 7}" fill="none" stroke="${esc(col(g))}" stroke-width="2" stroke-dasharray="4 4"/>` : ''}<circle r="${R}" fill="${esc(col(g))}" stroke="${ring(g)}" stroke-width="4"/>${g.bilde_sti ? `<image href="${esc(pubUrl(g.bilde_sti))}" x="${-(R - 2)}" y="${-(R - 2)}" width="${2 * (R - 2)}" height="${2 * (R - 2)}" clip-path="url(#kc${i})" preserveAspectRatio="xMidYMid slice"/>` : `<text y="6" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">${esc((g.navn || '?').trim().charAt(0).toUpperCase())}</text>`}<text y="${R + 15}" text-anchor="middle" font-size="12" font-weight="600" class="klbl">${esc(g.navn.split(' ')[0])}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}</text></g>`; }).join('')}</svg>`;
   }
@@ -1342,7 +1354,7 @@ function bindKart(el) {
   const svg = $('#kSvg', el);
   if (svg) {
     const toXY = ev => { const r = svg.getBoundingClientRect(); return { x: (ev.clientX - r.left) * kart.W / r.width, y: (ev.clientY - r.top) * kart.H / r.height }; };
-    const moveNode = id => { const p = kart.pos[id], g = svg.querySelector(`[data-kn="${id}"]`); if (g) g.setAttribute('transform', `translate(${p.x},${p.y})`); edges.forEach((e, i) => { if (e.a.id !== id && e.b.id !== id) return; const A = kart.pos[e.a.id], B = kart.pos[e.b.id], ge = svg.querySelector(`[data-ke="${i}"]`); if (!ge) return; const ln = ge.querySelector('line'); ln.setAttribute('x1', A.x); ln.setAttribute('y1', A.y); ln.setAttribute('x2', B.x); ln.setAttribute('y2', B.y); const w = ge.querySelector('.kwarn'); if (w) { w.setAttribute('x', (A.x + B.x) / 2); w.setAttribute('y', (A.y + B.y) / 2 + 5); } }); };
+    const moveNode = id => { const hg = svg.querySelector('#kHulls'); if (hg) hg.innerHTML = kartHulls(nodes); const p = kart.pos[id], g = svg.querySelector(`[data-kn="${id}"]`); if (g) g.setAttribute('transform', `translate(${p.x},${p.y})`); edges.forEach((e, i) => { if (e.a.id !== id && e.b.id !== id) return; const A = kart.pos[e.a.id], B = kart.pos[e.b.id], ge = svg.querySelector(`[data-ke="${i}"]`); if (!ge) return; const ln = ge.querySelector('line'); ln.setAttribute('x1', A.x); ln.setAttribute('y1', A.y); ln.setAttribute('x2', B.x); ln.setAttribute('y2', B.y); const w = ge.querySelector('.kwarn'); if (w) { w.setAttribute('x', (A.x + B.x) / 2); w.setAttribute('y', (A.y + B.y) / 2 + 5); } }); };
     svg.querySelectorAll('[data-kn]').forEach(node => node.addEventListener('pointerdown', ev => {
       if (ev.button) return; ev.preventDefault(); const id = node.dataset.kn, s0 = toXY(ev), p0 = { ...kart.pos[id] }; let moved = false;
       const mv = e2 => { const c = toXY(e2), dx = c.x - s0.x, dy = c.y - s0.y; if (!moved && Math.hypot(dx, dy) * kart.zoom < 5) return; moved = true; kart.pos[id] = { x: Math.max(24, Math.min(kart.W - 24, p0.x + dx)), y: Math.max(24, Math.min(kart.H - 24, p0.y + dy)) }; moveNode(id); };
