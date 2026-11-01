@@ -159,6 +159,9 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .gadd #gAntall{width:70px;flex:none}
 .gadd .btn{white-space:nowrap}
 .gfil .fon{border-color:var(--accent);background:rgba(79,124,255,.10);box-shadow:inset 0 0 0 1px var(--accent)}
+.gclhead{grid-column:1/-1;font-size:13px;font-weight:700;color:var(--muted);margin:10px 2px 4px;padding-top:6px;border-top:2px solid var(--line)}
+.gclhead:first-child{border-top:0;margin-top:2px}
+.gclhead small{font-weight:500}
 .filbar{display:flex;gap:8px;align-items:center;justify-content:space-between;background:rgba(79,124,255,.12);border:1px solid var(--accent);border-radius:12px;padding:8px 10px;margin-bottom:8px;font-size:13px}
 .filbar .filcnt{color:var(--muted);white-space:nowrap}
 .filbar .btn{padding:6px 10px;font-size:13px;flex:none}
@@ -1095,12 +1098,30 @@ function gMarkFilters(el) {
   on('#gQ', gQuery); on('#gFil', gFilter); on('#gGrpF', gGrp);
   const bar = $('#gFilBar', el); if (bar) { bar.innerHTML = gFilBarHtml(); const c = $('#gFilClr', bar); if (c) c.onclick = () => { gQuery = ''; gFilter = ''; gGrp = ''; renderGuests(); }; }
 }
+function gRelClusters(list, nm) {
+  const adj = {}; guests.forEach(g => { adj[g.id] = []; });
+  relations.forEach(r => { if (adj[r.a_id] && adj[r.b_id]) { adj[r.a_id].push({ id: r.b_id, t: r.type }); adj[r.b_id].push({ id: r.a_id, t: r.type }); } });
+  const inList = new Set(list.map(g => g.id)), seen = new Set(), clusters = [], solo = [];
+  const byId = Object.fromEntries(guests.map(g => [g.id, g]));
+  const order = list.slice().sort((a, b) => adj[b.id].length - adj[a.id].length || nm(a, b));
+  order.forEach(g0 => {
+    if (seen.has(g0.id)) return;
+    if (!adj[g0.id].length) { seen.add(g0.id); solo.push(g0); return; }
+    const comp = [], q = [g0.id]; seen.add(g0.id);
+    while (q.length) { const id = q.shift(); if (inList.has(id)) comp.push(byId[id]); adj[id].slice().sort((a, b) => (a.t === 'sammen' ? 0 : 1) - (b.t === 'sammen' ? 0 : 1) || nm(byId[a.id], byId[b.id])).forEach(n => { if (!seen.has(n.id)) { seen.add(n.id); q.push(n.id); } }); }
+    if (comp.length) clusters.push(comp);
+  });
+  clusters.sort((a, b) => b.length - a.length);
+  const head = (t, n) => `<div class="gclhead">${t} <small>${n} ${n === 1 ? 'person' : 'personer'}</small></div>`;
+  return clusters.map(c => head('🔗 Knyttet av relasjoner', c.length) + c.map(gGuestHtml).join('')).join('') + (solo.length ? head('Uten relasjoner', solo.length) + solo.sort(nm).map(gGuestHtml).join('') : '');
+}
 function gListHtml() {
   const list = gFiltered();
   const ord = { kommer: 0, kanskje: 1, venter: 2, kommer_ikke: 3 }, nm = (a, b) => a.navn.localeCompare(b.navn, 'nb');
   const tn = g => (tables.find(t => t.id === g.bord_id) || { navn: '\uffff' }).navn, gn = g => (groups.find(x => x.id === g.gruppe_id) || { navn: '\uffff' }).navn;
   const cmp = { navn: nm, svar: (a, b) => ord[a.status] - ord[b.status] || nm(a, b), bord: (a, b) => tn(a).localeCompare(tn(b), 'nb', { numeric: true }) || nm(a, b), gruppe: (a, b) => gn(a).localeCompare(gn(b), 'nb') || nm(a, b), nyeste: (a, b) => String(b.opprettet).localeCompare(String(a.opprettet)) }[gSort] || nm;
   list.sort(cmp);
+  if (gSort === 'rel' && list.length) return gRelClusters(list, nm);
   return list.length ? list.map(gGuestHtml).join('') : `<p class="gempty">${guests.length ? 'Ingen treff.' : 'Ingen gjester ennå. Legg til den første ovenfor.'}</p>`;
 }
 function bindGuestRows(root) {
@@ -1121,7 +1142,7 @@ function renderGuests() {
       ${groups.length ? `<select id="gGrpNew" aria-label="Gruppe"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gNewGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>` : ''}</form>
       <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select>
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>
-        <select id="gSort" aria-label="Sorter">${[['navn', '↕ Navn'], ['svar', '↕ Svar'], ['bord', '↕ Bord'], ['gruppe', '↕ Gruppe'], ['nyeste', '↕ Nyeste']].map(([k, v]) => `<option value="${k}" ${gSort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+        <select id="gSort" aria-label="Sorter">${[['navn', '↕ Navn'], ['svar', '↕ Svar'], ['bord', '↕ Bord'], ['gruppe', '↕ Gruppe'], ['nyeste', '↕ Nyeste'], ['rel', '↕ Relasjoner']].map(([k, v]) => `<option value="${k}" ${gSort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
       <div id="gFilBar">${gFilBarHtml()}</div><div id="gList">${gListHtml()}</div></div>`;
   } else if (gTab === 'kart') {
     body = kartHtml();
