@@ -238,6 +238,12 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .klbl{fill:var(--text);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
 .kwarn{fill:#e5484d;paint-order:stroke;stroke:#fff;stroke-width:3px}
 .kinfo{margin-top:10px}
+.kmiss{margin-top:10px}
+.kmg{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.kmrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.kmb{background:var(--col);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;color:var(--text);cursor:pointer}
+.kmb.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.ks{display:inline-block;width:14px;height:14px;border:2px dashed var(--muted);border-radius:50%;vertical-align:middle;margin-right:4px}
 .kcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .kcard .khead{margin-bottom:6px}.kcard small{color:var(--muted)}
 .krel{display:block;width:100%;text-align:left;background:var(--col);border:0;border-radius:10px;padding:9px 10px;margin-top:6px;font:inherit;color:var(--text);cursor:pointer}
@@ -1197,7 +1203,7 @@ function editGuest(id) {
   };
 }
 /* ---------- Relasjonskart ---------- */
-const kart = { sammen: true, ikke: true, grp: '', alle: false, skjul: true, sel: null, pos: {}, sig: '', zoom: null, W: 600, H: 500 };
+const kart = { sammen: true, ikke: true, grp: '', alle: true, skjul: true, sel: null, pos: {}, sig: '', zoom: null, W: 600, H: 500 };
 function kartData() {
   const ok = g => !(kart.skjul && g.status === 'kommer_ikke') && (!kart.grp || (kart.grp === 'none' ? !g.gruppe_id : g.gruppe_id === kart.grp));
   const edges = relations.filter(r => (r.type === 'sammen' ? kart.sammen : kart.ikke)).map(r => ({ r, a: guests.find(g => g.id === r.a_id), b: guests.find(g => g.id === r.b_id) })).filter(e => e.a && e.b && ok(e.a) && ok(e.b));
@@ -1232,10 +1238,10 @@ function kartHtml() {
   return `<div class="gkart"><div class="kfil">
     <button class="btn ${kart.sammen ? 'on' : ''}" data-kt="sammen">💞 Skal sitte sammen</button><button class="btn ${kart.ikke ? 'on' : ''}" data-kt="ikke">⛔ Bør ikke</button>
     <select id="kGrp" aria-label="Gruppe">${opts.map(([v, t]) => `<option value="${v}" ${kart.grp === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
-    <div class="kfil2"><label class="remember"><input type="checkbox" id="kAlle" ${kart.alle ? 'checked' : ''}> Vis alle gjester</label><label class="remember"><input type="checkbox" id="kSkjul" ${kart.skjul ? 'checked' : ''}> Skjul de som ikke kommer</label>
+    <div class="kfil2"><label class="remember"><input type="checkbox" id="kAlle" ${kart.alle ? 'checked' : ''}> Vis de uten relasjoner</label><label class="remember"><input type="checkbox" id="kSkjul" ${kart.skjul ? 'checked' : ''}> Skjul de som ikke kommer</label>
     <span class="kzoom"><button class="btn" id="kZm" aria-label="Zoom ut">−</button><button class="btn" id="kZp" aria-label="Zoom inn">+</button></span></div>
-    <div class="kwrap" id="kWrap"></div><div class="kinfo" id="kInfo"></div>
-    <div class="klegend"><span><i class="kl g"></i> skal sitte sammen</span><span><i class="kl r"></i> bør ikke sitte sammen</span><span><b>⚠</b> brudd i bordplanen</span><span>Ring = svar (grønn kommer, gul kanskje, grå venter)</span></div></div>`;
+    <div class="kwrap" id="kWrap"></div><div class="kinfo" id="kInfo"></div><div class="kmiss" id="kMiss"></div>
+    <div class="klegend"><span><i class="kl g"></i> skal sitte sammen</span><span><i class="kl r"></i> bør ikke sitte sammen</span><span><i class="ks"></i> stiplet ring = ingen relasjoner ennå</span><span><b>⚠</b> brudd i bordplanen</span><span>Ring = svar (grønn kommer, gul kanskje, grå venter)</span></div></div>`;
 }
 function bindKart(el) {
   const wrap = $('#kWrap', el), info = $('#kInfo', el);
@@ -1251,7 +1257,7 @@ function bindKart(el) {
     wrap.innerHTML = `<svg id="kSvg" viewBox="0 0 ${kart.W} ${kart.H}" width="${Math.round(kart.W * kart.zoom)}" height="${Math.round(kart.H * kart.zoom)}" role="img" aria-label="Relasjonskart">
       <defs>${nodes.map((g, i) => g.bilde_sti ? `<clipPath id="kc${i}"><circle r="${R - 2}"/></clipPath>` : '').join('')}</defs>
       ${edges.map((e, i) => { const A = kart.pos[e.a.id], B = kart.pos[e.b.id], conflict = bad.has([e.a.id, e.b.id].sort().join('|')), dim = sel && e.a.id !== sel && e.b.id !== sel; return `<g class="ke ${dim ? 'dim' : ''}" data-ke="${i}"><line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${e.r.type === 'sammen' ? '#12b76a' : '#e5484d'}" stroke-width="${conflict ? 6 : 3}" ${e.r.type === 'sammen' ? '' : 'stroke-dasharray="7 5"'} stroke-linecap="round"/>${conflict ? `<text x="${(A.x + B.x) / 2}" y="${(A.y + B.y) / 2 + 5}" text-anchor="middle" font-size="16" class="kwarn">⚠</text>` : ''}</g>`; }).join('')}
-      ${nodes.map((g, i) => { const p = kart.pos[g.id], dim = sel && g.id !== sel && !nb.has(g.id); return `<g class="kn ${dim ? 'dim' : ''} ${g.id === sel ? 'sel' : ''}" data-kn="${g.id}" transform="translate(${p.x},${p.y})"><circle r="${R}" fill="${esc(col(g))}" stroke="${ring(g)}" stroke-width="4"/>${g.bilde_sti ? `<image href="${esc(pubUrl(g.bilde_sti))}" x="${-(R - 2)}" y="${-(R - 2)}" width="${2 * (R - 2)}" height="${2 * (R - 2)}" clip-path="url(#kc${i})" preserveAspectRatio="xMidYMid slice"/>` : `<text y="6" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">${esc((g.navn || '?').trim().charAt(0).toUpperCase())}</text>`}<text y="${R + 15}" text-anchor="middle" font-size="12" font-weight="600" class="klbl">${esc(g.navn.split(' ')[0])}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}</text></g>`; }).join('')}</svg>`;
+      ${nodes.map((g, i) => { const p = kart.pos[g.id], dim = sel && g.id !== sel && !nb.has(g.id), solo = !relsOf(g.id).length; return `<g class="kn ${dim ? 'dim' : ''} ${g.id === sel ? 'sel' : ''} ${solo ? 'solo' : ''}" data-kn="${g.id}" transform="translate(${p.x},${p.y})">${solo ? `<circle r="${R + 7}" fill="none" stroke="${esc(col(g))}" stroke-width="2" stroke-dasharray="4 4"/>` : ''}<circle r="${R}" fill="${esc(col(g))}" stroke="${ring(g)}" stroke-width="4"/>${g.bilde_sti ? `<image href="${esc(pubUrl(g.bilde_sti))}" x="${-(R - 2)}" y="${-(R - 2)}" width="${2 * (R - 2)}" height="${2 * (R - 2)}" clip-path="url(#kc${i})" preserveAspectRatio="xMidYMid slice"/>` : `<text y="6" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">${esc((g.navn || '?').trim().charAt(0).toUpperCase())}</text>`}<text y="${R + 15}" text-anchor="middle" font-size="12" font-weight="600" class="klbl">${esc(g.navn.split(' ')[0])}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}</text></g>`; }).join('')}</svg>`;
   }
   const showInfo = () => {
     const g = guests.find(x => x.id === kart.sel);
@@ -1264,6 +1270,11 @@ function bindKart(el) {
     $('#kOpen', info).onclick = () => editGuest(g.id); $('#kNew', info).onclick = () => addRelation(g.id);
     info.querySelectorAll('[data-ko]').forEach(b => b.onclick = () => { kart.sel = b.dataset.ko; renderGuests(); });
   };
+  const miss = nodes.filter(g => !relsOf(g.id).length), missBox = $('#kMiss', el);
+  if (!kart.alle) { const all = guests.filter(g => !(kart.skjul && g.status === 'kommer_ikke') && (!kart.grp || (kart.grp === 'none' ? !g.gruppe_id : g.gruppe_id === kart.grp)) && !relsOf(g.id).length); miss.length = 0; miss.push(...all); }
+  const byG = {}; miss.forEach(g => { const k = g.gruppe_id || '_'; (byG[k] = byG[k] || []).push(g); });
+  missBox.innerHTML = miss.length ? `<div class="kcard"><b>Mangler relasjoner (${miss.length})</b><div class="kmg">${Object.entries(byG).map(([k, l]) => { const x = grp(k === '_' ? null : k); return `<div class="kmrow"><span class="gtag" style="background:${x ? esc(x.farge) : '#98a2b3'};margin:0">${x ? esc(x.navn) : 'Uten gruppe'}</span>${l.map(g => `<button type="button" class="kmb ${g.id === kart.sel ? 'on' : ''}" data-km="${g.id}">${esc(g.navn)}</button>`).join('')}</div>`; }).join('')}</div></div>` : (guests.length ? '<p style="color:var(--muted);margin:10px 0 0;font-size:13px">✓ Alle har minst én relasjon.</p>' : '');
+  missBox.querySelectorAll('[data-km]').forEach(b => b.onclick = () => { kart.sel = b.dataset.km; renderGuests(); });
   showInfo();
   // interaksjon: trykk for å velge, dra for å flytte
   const svg = $('#kSvg', el);
