@@ -102,6 +102,8 @@ body.dragging #board{scroll-snap-type:none}
 .check.done span{text-decoration:line-through;color:var(--muted)}
 .check button{border:0;background:transparent;color:var(--muted);font-size:18px}
 .bar{display:flex;gap:8px;justify-content:space-between;margin-top:8px}
+.sheetq{margin:0 0 8px;font-size:16px}
+.sheetnone{color:var(--muted);padding:12px 14px;margin:0}
 .sheet button.opt{display:block;width:100%;text-align:left;padding:14px;border:0;border-bottom:1px solid var(--line);background:transparent;font-size:16px}
 .sheet button.opt.danger{color:var(--danger)}
 .sheet button.opt.cur{font-weight:700;color:var(--accent)}
@@ -462,10 +464,19 @@ function showModal(html, onClose) {
   ov.addEventListener('mousedown', e => { if (e.target === ov) { closeModal(); onClose && onClose(); } });
   return $('.modal', root);
 }
-function sheet(title, options) {
-  const m = showModal(`<h2>${esc(title)}</h2><div class="sheet">${options.map((o, i) =>
-    `<button class="opt ${o.danger ? 'danger' : ''} ${o.cur ? 'cur' : ''}" data-i="${i}">${esc(o.label)}</button>`).join('')}</div>`);
+function sheet(title, options, opt) {
+  const search = options.length >= 8 || !!(opt && opt.search);
+  const m = showModal(`<h2>${esc(title)}</h2>${search ? '<input type="search" class="sheetq" placeholder="Søk på navn …" autocomplete="off" aria-label="Søk">' : ''}<div class="sheet">${options.map((o, i) =>
+    `<button class="opt ${o.danger ? 'danger' : ''} ${o.cur ? 'cur' : ''}" data-i="${i}">${esc(o.label)}</button>`).join('')}<p class="sheetnone hidden">Ingen treff.</p></div>`);
   m.querySelectorAll('.opt').forEach(b => b.onclick = () => { closeModal(); options[+b.dataset.i].fn(); });
+  const q = m.querySelector('.sheetq');
+  if (q) {
+    const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const run = () => { const v = norm(q.value.trim()); let n = 0; m.querySelectorAll('.opt').forEach(b => { const hit = !v || norm(b.textContent).includes(v) || b.textContent.toLowerCase().includes(q.value.trim().toLowerCase()); b.classList.toggle('hidden', !hit); if (hit) n++; }); m.querySelector('.sheetnone').classList.toggle('hidden', n > 0); };
+    q.oninput = run;
+    q.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const f = [...m.querySelectorAll('.opt')].find(b => !b.classList.contains('hidden')); if (f) f.click(); } };
+    q.focus();
+  }
 }
 
 /* ---------- Innlogging ---------- */
@@ -1765,13 +1776,13 @@ function addRelation(id) {
   const taken = new Set(relsOf(id).map(r => r.a_id === id ? r.b_id : r.a_id));
   const cand = guests.filter(x => x.id !== id && !taken.has(x.id)).sort((a, b) => a.navn.localeCompare(b.navn, 'nb'));
   if (!cand.length) { toast(guests.length < 2 ? 'Legg til flere gjester først' : 'Alle gjester har allerede en relasjon til denne'); return editGuest(id); }
-  sheet(`Relasjon for ${g.navn}: velg gjest`, cand.map(o => ({ label: `${o.navn}${grp(o.gruppe_id) ? ' · ' + grp(o.gruppe_id).navn : ''}`, fn: () =>
+  sheet(`Relasjon for ${g.navn}: søk eller velg gjest`, cand.map(o => ({ label: `${o.navn}${grp(o.gruppe_id) ? ' · ' + grp(o.gruppe_id).navn : ''}`, fn: () =>
     sheet(`${g.navn} og ${o.navn}`, Object.entries(RELT).map(([k, v]) => ({ label: `${v.i} ${v.n}`, fn: async () => {
       const [a, b] = id < o.id ? [id, o.id] : [o.id, id];
       const { data, error } = await sb.from('oppg_relasjoner').insert({ tavle_id: boardId, a_id: a, b_id: b, type: k }).select().single();
       if (fail(error, 'kunne ikke lagre relasjonen')) return editGuest(id);
       relations.push(data); renderGuests(); editGuest(id);
-    } }))) })));
+    } }))) })), { search: true });
 }
 async function newGroup() {
   const navn = prompt('Navn på gruppen (f.eks. Familie, Bodø, Trondheim-gjengen):'); if (!navn || !navn.trim()) return null;
