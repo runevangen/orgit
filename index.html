@@ -142,7 +142,7 @@ body.dragging #board{scroll-snap-type:none}
 .ghead h2{margin:0;font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gtabs{padding:8px 12px}
 .gtabsel{display:flex;gap:8px}
-.gtabsel .btn{flex:1}
+.gtabsel .btn{flex:1;padding-left:6px;padding-right:6px;font-size:14px}
 .gbody{flex:1;overflow-y:auto;padding:0 12px 28px}
 .gsum{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}
 .gsum .chip{padding:3px 8px;font-size:12px;color:#fff;font-weight:600}
@@ -219,6 +219,28 @@ body.dragging #board{scroll-snap-type:none}
 /* Svarside for gjester */
 .rsvpq{font-size:18px;font-weight:600;margin:0 0 12px}
 .rlstat{font-size:14px;margin:0 0 8px;padding:8px 10px;background:var(--col);border-radius:10px}
+.gkart{padding:4px 0 24px}
+.kfil{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.kfil .btn{padding:8px 12px;font-size:14px}
+.kfil select{width:auto;flex:1 1 140px;min-width:0;font-size:14px}
+.kfil2{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.kfil2 .remember{margin:0;font-size:14px}
+.kzoom{margin-left:auto;display:flex;gap:6px}
+.kzoom .btn{padding:6px 14px;min-width:44px}
+.kwrap{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:auto;max-height:68vh;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
+.kwrap svg{display:block;margin:0 auto}
+.kn{cursor:grab}.kn.dim,.ke.dim{opacity:.18}
+.kn.sel circle{stroke-width:6}
+.klbl{fill:var(--text);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.kwarn{fill:#e5484d;paint-order:stroke;stroke:#fff;stroke-width:3px}
+.kinfo{margin-top:10px}
+.kcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kcard .khead{margin-bottom:6px}.kcard small{color:var(--muted)}
+.krel{display:block;width:100%;text-align:left;background:var(--col);border:0;border-radius:10px;padding:9px 10px;margin-top:6px;font:inherit;color:var(--text);cursor:pointer}
+.khbtn{display:flex;gap:8px;margin-top:10px}.khbtn .btn{flex:1}
+.klegend{display:flex;gap:6px 16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+.kl{display:inline-block;width:22px;height:0;border-top:3px solid #12b76a;vertical-align:middle;margin-right:4px}
+.kl.r{border-top:3px dashed #e5484d}
 .rlfelles{background:var(--surface);border:2px dashed var(--line);border-radius:12px;padding:10px;margin-bottom:10px}
 .rlfelles small{display:block;color:var(--muted);margin-top:8px;font-size:12px}
 .rlfurl{font-size:12px;word-break:break-all;color:var(--muted);margin:6px 0 2px}
@@ -264,7 +286,8 @@ body.dragging #board{scroll-snap-type:none}
   .gbody{padding:0 28px 32px}
   .ghead,.gtabs{padding-left:28px;padding-right:28px}
   .gtabs{display:flex;gap:16px;align-items:center}
-  .gtabsel{flex:0 0 520px}
+  .gtabsel{flex:0 0 680px}
+  .gtabsel .btn{font-size:15px}
   .gliste{max-width:1180px;margin:0 auto}
   .gliste .gadd{max-width:760px}
   .gliste .gfil{max-width:760px}
@@ -1053,6 +1076,8 @@ function renderGuests() {
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>
         <select id="gSort" aria-label="Sorter">${[['navn', '↕ Navn'], ['svar', '↕ Svar'], ['bord', '↕ Bord'], ['gruppe', '↕ Gruppe'], ['nyeste', '↕ Nyeste']].map(([k, v]) => `<option value="${k}" ${gSort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
       <div id="gList">${gListHtml()}</div></div>`;
+  } else if (gTab === 'kart') {
+    body = kartHtml();
   } else {
     const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
@@ -1065,7 +1090,7 @@ function renderGuests() {
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
   }
   el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gHelp" title="Guide" aria-label="Guide">❓</button><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
-    <div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bordplassering</button></div><div class="gtools"><button class="btn" id="gManage" type="button">👥 Grupper</button>
+    <div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bordplassering</button><button class="btn ${gTab === 'kart' ? 'on' : ''}" data-gtab="kart">Relasjoner</button></div><div class="gtools"><button class="btn" id="gManage" type="button">👥 Grupper</button>
       <button class="btn" id="gInv" type="button">📅 Invitasjon</button>
       <button class="btn" id="gLinks" type="button">✉ Svarlenker</button>
       <button class="btn" id="gFood" type="button">🍽 Matvalg</button></div></div><div class="gbody">${body}</div>`;
@@ -1082,6 +1107,8 @@ function renderGuests() {
     $('#gSort', el).onchange = e => { gSort = e.target.value; try { localStorage.setItem('oppg_gsort', gSort); } catch (x) {} $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
     $('#gFil', el).onchange = e => { gFilter = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
     bindGuestRows($('#gList', el));
+  } else if (gTab === 'kart') {
+    bindKart(el);
   } else {
     $('#gNewTable', el).onclick = addTable;
     $('#gTypes', el).onclick = manageTypes;
@@ -1163,6 +1190,94 @@ function editGuest(id) {
     if (g.bilde_sti) sb.storage.from(BUCKET).remove([g.bilde_sti]);
     guests = guests.filter(x => x.id !== id); relations = relations.filter(r => r.a_id !== id && r.b_id !== id); closeModal(); renderGuests();
   };
+}
+/* ---------- Relasjonskart ---------- */
+const kart = { sammen: true, ikke: true, grp: '', alle: false, skjul: true, sel: null, pos: {}, sig: '', zoom: null, W: 600, H: 500 };
+function kartData() {
+  const ok = g => !(kart.skjul && g.status === 'kommer_ikke') && (!kart.grp || (kart.grp === 'none' ? !g.gruppe_id : g.gruppe_id === kart.grp));
+  const edges = relations.filter(r => (r.type === 'sammen' ? kart.sammen : kart.ikke)).map(r => ({ r, a: guests.find(g => g.id === r.a_id), b: guests.find(g => g.id === r.b_id) })).filter(e => e.a && e.b && ok(e.a) && ok(e.b));
+  const linked = new Set(edges.flatMap(e => [e.a.id, e.b.id]));
+  const nodes = guests.filter(g => ok(g) && (kart.alle || linked.has(g.id)));
+  return { nodes, edges };
+}
+function kartLayout(nodes, edges) {
+  const n = nodes.length, W = Math.max(480, Math.round(130 * Math.sqrt(n) + 160)), H = Math.round(W * 0.8);
+  const idx = Object.fromEntries(nodes.map((g, i) => [g.id, i]));
+  const gk = g => g.gruppe_id || '_';
+  const gl = [...new Set(nodes.map(gk))], P = nodes.map((g, i) => { const a = 2 * Math.PI * gl.indexOf(gk(g)) / Math.max(1, gl.length), c = nodes.filter(x => gk(x) === gk(g)), j = c.indexOf(g); const r = 60 + 30 * Math.sqrt(c.length); return { x: W / 2 + Math.cos(a) * W * 0.25 + Math.cos(j * 2.4) * r * 0.5 * (1 + j / 8), y: H / 2 + Math.sin(a) * H * 0.25 + Math.sin(j * 2.4) * r * 0.5 * (1 + j / 8), vx: 0, vy: 0 }; });
+  const E = edges.map(e => ({ i: idx[e.a.id], j: idx[e.b.id], t: e.r.type }));
+  for (let it = 0; it < 320; it++) {
+    const cool = 1 - it / 340;
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      let dx = P[i].x - P[j].x, dy = P[i].y - P[j].y, d2 = dx * dx + dy * dy || 1; const d = Math.sqrt(d2), f = Math.min(6000 / d2, 8);
+      dx /= d; dy /= d; P[i].vx += dx * f; P[i].vy += dy * f; P[j].vx -= dx * f; P[j].vy -= dy * f;
+    }
+    E.forEach(e => { const a = P[e.i], b = P[e.j]; let dx = b.x - a.x, dy = b.y - a.y; const d = Math.sqrt(dx * dx + dy * dy) || 1, rest = e.t === 'sammen' ? 85 : 210, k = e.t === 'sammen' ? 0.05 : 0.02, f = (d - rest) * k; dx /= d; dy /= d; a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f; });
+    gl.forEach(k => { const m = nodes.map((g, i) => gk(g) === k ? i : -1).filter(i => i >= 0); if (m.length < 2) return; const cx = m.reduce((s, i) => s + P[i].x, 0) / m.length, cy = m.reduce((s, i) => s + P[i].y, 0) / m.length; m.forEach(i => { P[i].vx += (cx - P[i].x) * 0.012; P[i].vy += (cy - P[i].y) * 0.012; }); });
+    P.forEach(p => { p.vx += (W / 2 - p.x) * 0.004; p.vy += (H / 2 - p.y) * 0.004; p.x += Math.max(-14, Math.min(14, p.vx)) * cool; p.y += Math.max(-14, Math.min(14, p.vy)) * cool; p.vx *= 0.6; p.vy *= 0.6; });
+  }
+  const pad = 46, minX = Math.min(...P.map(p => p.x)), maxX = Math.max(...P.map(p => p.x)), minY = Math.min(...P.map(p => p.y)), maxY = Math.max(...P.map(p => p.y));
+  const sx = (W - 2 * pad) / Math.max(1, maxX - minX), sy = (H - 2 * pad) / Math.max(1, maxY - minY), s = Math.min(sx, sy, 2.2);
+  const ox = (W - (maxX - minX) * s) / 2 - minX * s, oy = (H - (maxY - minY) * s) / 2 - minY * s;
+  const pos = {}; nodes.forEach((g, i) => { pos[g.id] = { x: P[i].x * s + ox, y: P[i].y * s + oy }; });
+  return { pos, W, H };
+}
+function kartHtml() {
+  const opts = [['', 'Alle grupper'], ['none', 'Uten gruppe'], ...groups.map(x => [x.id, x.navn])];
+  return `<div class="gkart"><div class="kfil">
+    <button class="btn ${kart.sammen ? 'on' : ''}" data-kt="sammen">💞 Skal sitte sammen</button><button class="btn ${kart.ikke ? 'on' : ''}" data-kt="ikke">⛔ Bør ikke</button>
+    <select id="kGrp" aria-label="Gruppe">${opts.map(([v, t]) => `<option value="${v}" ${kart.grp === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
+    <div class="kfil2"><label class="remember"><input type="checkbox" id="kAlle" ${kart.alle ? 'checked' : ''}> Vis alle gjester</label><label class="remember"><input type="checkbox" id="kSkjul" ${kart.skjul ? 'checked' : ''}> Skjul de som ikke kommer</label>
+    <span class="kzoom"><button class="btn" id="kZm" aria-label="Zoom ut">−</button><button class="btn" id="kZp" aria-label="Zoom inn">+</button></span></div>
+    <div class="kwrap" id="kWrap"></div><div class="kinfo" id="kInfo"></div>
+    <div class="klegend"><span><i class="kl g"></i> skal sitte sammen</span><span><i class="kl r"></i> bør ikke sitte sammen</span><span><b>⚠</b> brudd i bordplanen</span><span>Ring = svar (grønn kommer, gul kanskje, grå venter)</span></div></div>`;
+}
+function bindKart(el) {
+  const wrap = $('#kWrap', el), info = $('#kInfo', el);
+  const issues = relIssues(), bad = new Set(issues.map(i => [i.a.id, i.b.id].sort().join('|')));
+  const { nodes, edges } = kartData();
+  const sig = nodes.map(g => g.id).sort().join(',') + '#' + edges.map(e => e.r.id).sort().join(',') + '#' + kart.grp;
+  if (sig !== kart.sig || !Object.keys(kart.pos).length && nodes.length) { const L = nodes.length ? kartLayout(nodes, edges) : { pos: {}, W: 480, H: 380 }; kart.pos = L.pos; kart.W = L.W; kart.H = L.H; kart.sig = sig; }
+  if (kart.zoom == null) kart.zoom = Math.max(0.6, Math.min(1, ((wrap.clientWidth || 360) - 4) / kart.W));
+  if (!nodes.length) { wrap.innerHTML = '<p class="gempty" style="padding:24px 12px">Ingen relasjoner å vise ennå. Åpne en gjest og trykk «+ Ny relasjon», eller velg «Vis alle gjester».</p>'; info.innerHTML = ''; }
+  else {
+    const R = 22, ring = g => GST[g.status].c, col = g => (grp(g.gruppe_id) || {}).farge || '#98a2b3';
+    const sel = kart.sel, nb = new Set(sel ? edges.filter(e => e.a.id === sel || e.b.id === sel).flatMap(e => [e.a.id, e.b.id]) : []);
+    wrap.innerHTML = `<svg id="kSvg" viewBox="0 0 ${kart.W} ${kart.H}" width="${Math.round(kart.W * kart.zoom)}" height="${Math.round(kart.H * kart.zoom)}" role="img" aria-label="Relasjonskart">
+      <defs>${nodes.map((g, i) => g.bilde_sti ? `<clipPath id="kc${i}"><circle r="${R - 2}"/></clipPath>` : '').join('')}</defs>
+      ${edges.map((e, i) => { const A = kart.pos[e.a.id], B = kart.pos[e.b.id], conflict = bad.has([e.a.id, e.b.id].sort().join('|')), dim = sel && e.a.id !== sel && e.b.id !== sel; return `<g class="ke ${dim ? 'dim' : ''}" data-ke="${i}"><line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${e.r.type === 'sammen' ? '#12b76a' : '#e5484d'}" stroke-width="${conflict ? 6 : 3}" ${e.r.type === 'sammen' ? '' : 'stroke-dasharray="7 5"'} stroke-linecap="round"/>${conflict ? `<text x="${(A.x + B.x) / 2}" y="${(A.y + B.y) / 2 + 5}" text-anchor="middle" font-size="16" class="kwarn">⚠</text>` : ''}</g>`; }).join('')}
+      ${nodes.map((g, i) => { const p = kart.pos[g.id], dim = sel && g.id !== sel && !nb.has(g.id); return `<g class="kn ${dim ? 'dim' : ''} ${g.id === sel ? 'sel' : ''}" data-kn="${g.id}" transform="translate(${p.x},${p.y})"><circle r="${R}" fill="${esc(col(g))}" stroke="${ring(g)}" stroke-width="4"/>${g.bilde_sti ? `<image href="${esc(pubUrl(g.bilde_sti))}" x="${-(R - 2)}" y="${-(R - 2)}" width="${2 * (R - 2)}" height="${2 * (R - 2)}" clip-path="url(#kc${i})" preserveAspectRatio="xMidYMid slice"/>` : `<text y="6" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">${esc((g.navn || '?').trim().charAt(0).toUpperCase())}</text>`}<text y="${R + 15}" text-anchor="middle" font-size="12" font-weight="600" class="klbl">${esc(g.navn.split(' ')[0])}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}</text></g>`; }).join('')}</svg>`;
+  }
+  const showInfo = () => {
+    const g = guests.find(x => x.id === kart.sel);
+    if (!g) { info.innerHTML = nodes.length ? '<p style="color:var(--muted);margin:0">Trykk på en person for å se hvem de er knyttet til. Dra personene for å flytte dem.</p>' : ''; return; }
+    const rs = relsOf(g.id).map(r => ({ r, o: relOther(r, g.id) })).filter(x => x.o);
+    info.innerHTML = `<div class="kcard"><div class="khead"><b>${esc(g.navn)}</b>${g.antall > 1 ? `<small> +${g.antall - 1}</small>` : ''}<small> · ${GST[g.status].n}${g.bord_id ? ' · ' + esc(tName(g.bord_id)) : ''}${grp(g.gruppe_id) ? ' · ' + esc(grp(g.gruppe_id).navn) : ''}</small></div>
+      ${rs.map(x => `<button class="krel" data-ko="${x.o.id}">${RELT[x.r.type].i} ${RELT[x.r.type].n.toLowerCase()}: <b>${esc(x.o.navn)}</b>${bad.has([g.id, x.o.id].sort().join('|')) ? ' ⚠' : ''}</button>`).join('') || '<p style="color:var(--muted);margin:6px 0">Ingen relasjoner ennå.</p>'}
+      <div class="khbtn"><button class="btn" id="kOpen">Åpne gjest</button><button class="btn primary" id="kNew">+ Ny relasjon</button></div></div>`;
+    $('#kOpen', info).onclick = () => editGuest(g.id); $('#kNew', info).onclick = () => addRelation(g.id);
+    info.querySelectorAll('[data-ko]').forEach(b => b.onclick = () => { kart.sel = b.dataset.ko; renderGuests(); });
+  };
+  showInfo();
+  // interaksjon: trykk for å velge, dra for å flytte
+  const svg = $('#kSvg', el);
+  if (svg) {
+    const toXY = ev => { const r = svg.getBoundingClientRect(); return { x: (ev.clientX - r.left) * kart.W / r.width, y: (ev.clientY - r.top) * kart.H / r.height }; };
+    const moveNode = id => { const p = kart.pos[id], g = svg.querySelector(`[data-kn="${id}"]`); if (g) g.setAttribute('transform', `translate(${p.x},${p.y})`); edges.forEach((e, i) => { if (e.a.id !== id && e.b.id !== id) return; const A = kart.pos[e.a.id], B = kart.pos[e.b.id], ge = svg.querySelector(`[data-ke="${i}"]`); if (!ge) return; const ln = ge.querySelector('line'); ln.setAttribute('x1', A.x); ln.setAttribute('y1', A.y); ln.setAttribute('x2', B.x); ln.setAttribute('y2', B.y); const w = ge.querySelector('.kwarn'); if (w) { w.setAttribute('x', (A.x + B.x) / 2); w.setAttribute('y', (A.y + B.y) / 2 + 5); } }); };
+    svg.querySelectorAll('[data-kn]').forEach(node => node.addEventListener('pointerdown', ev => {
+      if (ev.button) return; ev.preventDefault(); const id = node.dataset.kn, s0 = toXY(ev), p0 = { ...kart.pos[id] }; let moved = false;
+      const mv = e2 => { const c = toXY(e2), dx = c.x - s0.x, dy = c.y - s0.y; if (!moved && Math.hypot(dx, dy) * kart.zoom < 5) return; moved = true; kart.pos[id] = { x: Math.max(24, Math.min(kart.W - 24, p0.x + dx)), y: Math.max(24, Math.min(kart.H - 24, p0.y + dy)) }; moveNode(id); };
+      const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); if (!moved) { kart.sel = kart.sel === id ? null : id; renderGuests(); } };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    }));
+    svg.addEventListener('pointerdown', ev => { if (ev.target === svg) { kart.sel = null; renderGuests(); } });
+  }
+  el.querySelectorAll('[data-kt]').forEach(b => b.onclick = () => { kart[b.dataset.kt] = !kart[b.dataset.kt]; kart.pos = {}; renderGuests(); });
+  $('#kGrp', el).onchange = e => { kart.grp = e.target.value; kart.pos = {}; renderGuests(); };
+  $('#kAlle', el).onchange = e => { kart.alle = e.target.checked; kart.pos = {}; renderGuests(); };
+  $('#kSkjul', el).onchange = e => { kart.skjul = e.target.checked; kart.pos = {}; renderGuests(); };
+  $('#kZm', el).onclick = () => { kart.zoom = Math.max(0.4, kart.zoom - 0.2); renderGuests(); };
+  $('#kZp', el).onclick = () => { kart.zoom = Math.min(2.4, kart.zoom + 0.2); renderGuests(); };
 }
 function seatSlots(t, list) {
   const total = list.reduce((x, g) => x + g.antall, 0), n = Math.max(t.plasser, total), slots = new Array(n).fill(null);
