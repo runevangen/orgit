@@ -11,6 +11,9 @@ Idéer fra research på andre planleggingsapper (Zola, Joy, WeddingWire, RSVPify
 
 ## Senere
 
+- [ ] **Masseutsendelse på e-post.** E-postfelt per gjest, innliming av liste og en knapp som sender personlig invitasjon og påminnelse via mediame.no (Edge Function + Resend-nøkkel som hemmelighet).
+- [ ] **Egen forhåndsvisning av lenke per arrangement** (navn og dato i Messenger/WhatsApp), krever en server-funksjon.
+
 - [ ] **Svar per delarrangement.** Ulike gjestelister for for eksempel seremoni, middag og brunsj.
 - [ ] **Advarsler i bordplanen.** Bord som er fullt, gjester som ikke bør sitte sammen, gjester uten plass. Vis svarstatus og matvalg ved hvert sete.
 - [ ] **Innsjekk på arrangementsdagen.** Se bord og plass ved ankomst. Mest aktuelt for større arrangementer.
@@ -24,6 +27,8 @@ Idéer fra research på andre planleggingsapper (Zola, Joy, WeddingWire, RSVPify
 - [ ] E-postinnlogging for sportsbibelen (bruksanvisning er flyttet dit manuelt).
 
 ## Ferdig (nylig)
+
+- [x] Deling via Messenger, WhatsApp og SMS, markering av sendt invitasjon, faste plasser ved bord, felles lenke til gruppechat
 
 - [x] E-postinnlogging med engangskode, medlemmer og roller per tavle
 - [x] Låste data (RLS), privat bildelager med signerte lenker

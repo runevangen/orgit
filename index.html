@@ -219,6 +219,9 @@ body.dragging #board{scroll-snap-type:none}
 /* Svarside for gjester */
 .rsvpq{font-size:18px;font-weight:600;margin:0 0 12px}
 .rlstat{font-size:14px;margin:0 0 8px;padding:8px 10px;background:var(--col);border-radius:10px}
+.rlfelles{background:var(--surface);border:2px dashed var(--line);border-radius:12px;padding:10px;margin-bottom:10px}
+.rlfelles small{display:block;color:var(--muted);margin-top:8px;font-size:12px}
+.rlfurl{font-size:12px;word-break:break-all;color:var(--muted);margin:6px 0 2px}
 .rlrow{background:var(--surface);border-radius:12px;padding:8px 10px;margin-bottom:8px;border-left:4px solid var(--line)}
 .rlrow.sent{border-left-color:#12b76a}
 .rltop{display:flex;align-items:center;gap:8px}
@@ -1430,12 +1433,22 @@ function showRsvpLinks() {
     const badge = g => { const parts = []; if (g.invitert_tid) parts.push(`<span class="sentbadge">✓ Invitert ${fmtK(g.invitert_tid)}</span>`); else parts.push('<span class="sentbadge no">Ikke invitert</span>'); if (g.paminnet_tid) parts.push(`<span class="sentbadge rem">🔔 Påminnet ${fmtK(g.paminnet_tid)}</span>`); return parts.join(''); };
     const tab = (k, t) => `<button class="btn${mode === k ? ' primary' : ''}" data-rlm="${k}">${t}</button>`;
     m.innerHTML = `<h2>Svarlenker</h2><p style="color:var(--muted);margin:0 0 8px;font-size:13px">Send hver gjest sin egen lenke. Ikke del lenkene åpent. Når du trykker på en av sende-knappene, merkes gjesten som ${miss ? 'påminnet' : 'invitert'}.</p>
+      ${(() => { const ft = b && b.felles_token, fu = ft ? location.origin + location.pathname + '?felles=' + ft : ''; return `<div class="rlfelles"><b>Felles lenke til gruppechat</b>${ft ? `<div class="rlfurl">${esc(fu)}</div><div class="rlbtns"><button class="btn" data-f="copy">Kopier</button><button class="btn" data-f="share">Del</button>${mobile ? '<button class="btn" data-f="msgr">Messenger</button>' : ''}<button class="btn" data-f="wa">WhatsApp</button><button class="btn" data-f="off">Slå av</button></div><small>Gjesten skriver navnet sitt og velger seg selv. Navn som ikke finnes, legges til på listen din.</small>` : '<div class="rlbtns"><button class="btn" data-f="on">Lag felles lenke</button></div><small>Én lenke du kan legge i en Messenger- eller WhatsApp-gruppe.</small>'}</div>`; })()}
       <div class="rlstat"><b>${nSent} av ${withTok.length}</b> er invitert · <b>${withTok.length - nMiss}</b> har svart</div>
       <div class="photobtns" style="margin-bottom:8px">${tab('alle', 'Alle (' + withTok.length + ')')}${tab('ikke', 'Ikke invitert (' + nNot + ')')}${tab('miss', 'Uten svar (' + nMiss + ')')}</div>
       <div class="photobtns" style="margin-bottom:10px"><button class="btn" id="rlAll">${miss ? 'Kopier påminnelser' : 'Kopier alle'}</button><button class="btn" id="rlMark">Merk viste som ${miss ? 'påminnet' : 'invitert'}</button><button class="btn" id="rlClose">Lukk</button></div>
       <div style="max-height:50vh;overflow:auto">${rows.map(g => `<div class="rlrow ${g.invitert_tid ? 'sent' : ''}"><div class="rltop"><span class="gdot" style="background:${GST[g.status].c}" title="${GST[g.status].n}"></span><div class="gname" style="cursor:default">${esc(g.navn)}<small>${GST[g.status].n}${g.svar_tid ? ' ✉' : ''}</small></div><div class="rlbadges">${badge(g)}</div></div>
         <div class="rlbtns"><button class="btn" data-k="copy" data-id="${g.id}">Kopier</button><button class="btn" data-k="share" data-id="${g.id}">Del</button>${mobile ? `<button class="btn" data-k="msgr" data-id="${g.id}">Messenger</button>` : ''}<button class="btn" data-k="wa" data-id="${g.id}">WhatsApp</button><button class="btn" data-k="sms" data-id="${g.id}">SMS</button>${g.invitert_tid || g.paminnet_tid ? `<button class="btn" data-k="undo" data-id="${g.id}" title="Fjern markering">↩︎</button>` : ''}</div></div>`).join('') || '<p style="color:var(--muted)">Ingen gjester i denne visningen.</p>'}</div>`;
     $('#rlClose', m).onclick = closeModal;
+    m.querySelectorAll('[data-f]').forEach(x => x.onclick = async () => {
+      const k = x.dataset.f, fu = location.origin + location.pathname + '?felles=' + (b && b.felles_token), text = `Hei! Du er invitert til ${ev}${when}${b && b.arr_sted ? ' (' + b.arr_sted + ')' : ''}. Svar her: ${fu}`;
+      if (k === 'on') { const arr = new Uint8Array(24); crypto.getRandomValues(arr); const tk = [...arr].map(v => v.toString(16).padStart(2, '0')).join(''); const { error } = await sb.from('oppg_tavler').update({ felles_token: tk }).eq('id', boardId); if (fail(error, 'kunne ikke lage lenken')) return; b.felles_token = tk; return renderLinks(data); }
+      if (k === 'off') { if (!confirm('Slå av den felles lenken? Den slutter å virke for alle som har den.')) return; const { error } = await sb.from('oppg_tavler').update({ felles_token: null }).eq('id', boardId); if (fail(error, 'kunne ikke slå av')) return; b.felles_token = null; return renderLinks(data); }
+      if (k === 'copy') toast(await copyText(text) ? 'Melding med lenke kopiert' : 'Kunne ikke kopiere');
+      else if (k === 'share') { if (navigator.share) { try { await navigator.share({ text }); } catch {} } else toast(await copyText(text) ? 'Melding med lenke kopiert' : 'Kunne ikke kopiere'); }
+      else if (k === 'msgr') location.href = 'fb-messenger://share/?link=' + encodeURIComponent(fu);
+      else if (k === 'wa') window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    });
     m.querySelectorAll('[data-rlm]').forEach(x => x.onclick = () => { renderLinks.mode = x.dataset.rlm; renderLinks(data); });
     $('#rlAll', m).onclick = async () => toast(await copyText(rows.map(g => miss ? `${g.navn}: ${msg(g)}` : `${g.navn}: ${url(g)}`).join('\n\n')) ? (miss ? 'Påminnelsene er kopiert' : 'Alle lenkene er kopiert') : 'Kunne ikke kopiere');
     $('#rlMark', m).onclick = () => { if (!rows.length) return; if (!confirm(`Merke ${rows.length} gjester som ${miss ? 'påminnet' : 'invitert'}?`)) return; rows.forEach(mark); renderLinks(data); };
@@ -1455,6 +1468,49 @@ function showRsvpLinks() {
     sb.rpc('oppg_rsvp_lenker2', { p_tavle: boardId }).then(({ data, error }) => { if (error) { closeModal(); toast('Feil: ' + error.message, 7000); } else renderLinks(data || []); });
     return;
   }
+}
+async function showFelles(token) {
+  document.title = 'Svar på invitasjon';
+  $('#app').classList.add('hidden'); const box = $('#login'); box.classList.remove('hidden');
+  box.innerHTML = '<div class="lbox"><p>Laster …</p></div>';
+  const { data, error } = await sb.rpc('oppg_felles_hent', { p_token: token });
+  if (error || !data || !data.length) { box.innerHTML = '<div class="lbox"><h1>Ugyldig lenke</h1><p>Lenken finnes ikke lenger. Be arrangøren om en ny.</p></div>'; return; }
+  const g = data[0]; let timer = null, adding = false;
+  const goto = tok => { location.href = location.pathname + '?svar=' + encodeURIComponent(tok); };
+  const info = `<div class="lbox"><h1>Du er invitert!</h1><p><b>${esc(g.arr_navn || g.tavle_navn)}</b></p>
+    ${g.arr_dato || g.arr_sted || g.arr_tekst || g.arr_frist ? `<div class="invbox">${g.arr_dato ? `<div class="when">📅 ${esc(fmtDato(g.arr_dato))}${g.arr_tid ? ' kl. ' + esc(g.arr_tid) : ''}</div>` : ''}${g.arr_sted ? `<div>📍 ${esc(g.arr_sted)}</div>` : ''}${g.arr_tekst ? `<div class="txt">${esc(g.arr_tekst)}</div>` : ''}${g.arr_frist ? `<div class="frist">Svar gjerne innen ${esc(fmtDato(g.arr_frist).toLowerCase())}</div>` : ''}</div>` : ''}`;
+  const draw = () => {
+    box.innerHTML = info + (adding
+      ? `<div class="rsvpq">Hva heter du?</div><div class="field"><input id="fNavn" maxlength="100" placeholder="Fornavn og etternavn" autocomplete="name"></div><div class="err" id="fErr"></div>
+         <button class="btn primary" id="fAdd" style="width:100%">Fortsett</button><button class="btn" id="fBack" style="width:100%;margin-top:8px">Tilbake</button></div>`
+      : `<div class="rsvpq">Hvem er du?</div><div class="field"><input id="fQ" type="search" placeholder="Skriv navnet ditt (minst 3 bokstaver)" autocomplete="off" autocapitalize="words"></div><div id="fRes" class="rsvpbtns"></div><div class="err" id="fErr"></div>
+         <button class="btn" id="fNone" style="width:100%">Jeg finner ikke navnet mitt</button></div>`);
+    if (adding) {
+      $('#fBack', box).onclick = () => { adding = false; draw(); };
+      $('#fAdd', box).onclick = async () => {
+        const navn = $('#fNavn', box).value.trim(); if (navn.length < 2) { $('#fErr', box).textContent = 'Skriv navnet ditt.'; return; }
+        const r = await sb.rpc('oppg_felles_ny', { p_token: token, p_navn: navn });
+        if (r.error || !r.data) { $('#fErr', box).textContent = /For mange/.test((r.error || {}).message || '') ? 'For mange forsøk. Vent litt og prøv igjen.' : 'Kunne ikke legge deg til. Prøv igjen.'; return; }
+        goto(r.data);
+      };
+      $('#fNavn', box).focus();
+    } else {
+      $('#fNone', box).onclick = () => { adding = true; draw(); };
+      $('#fQ', box).oninput = e => {
+        clearTimeout(timer); const q = e.target.value.trim(), res = $('#fRes', box); $('#fErr', box).textContent = '';
+        if (q.length < 3) { res.innerHTML = ''; return; }
+        timer = setTimeout(async () => {
+          const r = await sb.rpc('oppg_felles_sok', { p_token: token, p_q: q });
+          if (r.error) { $('#fErr', box).textContent = /For mange/.test(r.error.message) ? 'For mange forsøk. Vent litt og prøv igjen.' : 'Noe gikk galt. Prøv igjen.'; return; }
+          const list = r.data || [];
+          res.innerHTML = list.length ? list.map((x, i) => `<button type="button" data-i="${i}">${esc(x.navn)}</button>`).join('') : '<p style="color:var(--muted);margin:0">Ingen treff. Prøv en annen stavemåte, eller trykk under.</p>';
+          res.querySelectorAll('[data-i]').forEach(b => b.onclick = () => goto(list[+b.dataset.i].token));
+        }, 300);
+      };
+      $('#fQ', box).focus();
+    }
+  };
+  draw();
 }
 async function showRsvp(token) {
   document.title = 'Svar på invitasjon';
@@ -2066,6 +2122,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && me
   try { me = JSON.parse(store.get('oppg_meg') || sess.get('oppg_meg') || 'null'); } catch { me = null; }
   const rsvpToken = new URLSearchParams(location.search).get('svar');
   if (rsvpToken) return showRsvp(rsvpToken);
+  const fellesToken = new URLSearchParams(location.search).get('felles');
+  if (fellesToken) return showFelles(fellesToken);
   sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT' && authMode) { authMode = false; me = null; if (channel) { sb.removeChannel(channel); channel = null; } showAuthLogin(); } });
   const { data: sd } = await sb.auth.getSession();
   if (sd && sd.session) return startAuth();
