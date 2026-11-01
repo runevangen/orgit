@@ -1086,11 +1086,11 @@ function gGuestHtml(g) {
 }
 function gFiltered() {
   const q = gQuery.toLowerCase();
-  return guests.filter(g => (!gFilter || g.status === gFilter) && (!gGrp || (gGrp === 'none' ? !g.gruppe_id : g.gruppe_id === gGrp)) && (!q || g.navn.toLowerCase().includes(q) || (g.notat || '').toLowerCase().includes(q)));
+  return guests.filter(g => (!gFilter || (gFilter === 'inv' ? !!g.invitert_tid : gFilter === 'ikkeinv' ? !g.invitert_tid : g.status === gFilter)) && (!gGrp || (gGrp === 'none' ? !g.gruppe_id : g.gruppe_id === gGrp)) && (!q || g.navn.toLowerCase().includes(q) || (g.notat || '').toLowerCase().includes(q)));
 }
 function gFilBarHtml() {
   const tags = [];
-  if (gFilter) tags.push(`Svar: ${GST[gFilter].n}`);
+  if (gFilter) tags.push(gFilter === 'inv' ? 'Invitasjon: sendt' : gFilter === 'ikkeinv' ? 'Invitasjon: ikke sendt' : `Svar: ${GST[gFilter].n}`);
   if (gGrp) tags.push(gGrp === 'none' ? 'Uten gruppe' : `Gruppe: ${(grp(gGrp) || { navn: '?' }).navn}`);
   if (gQuery) tags.push(`Søk: «${gQuery}»`);
   if (!tags.length) return '';
@@ -1137,13 +1137,13 @@ function renderGuests() {
   const issues = relIssues(); gConf = new Set(issues.flatMap(i => [i.a.id, i.b.id]));
   const b = boards.find(x => x.id === boardId);
   const total = guests.reduce((n, g) => n + g.antall, 0);
-  const sum = `<div class="gsum">${Object.entries(GST).map(([k, v]) => `<span class="chip" style="background:${v.c}">${v.n} ${sumBy(k)}</span>`).join('')}<span class="chip" style="background:var(--muted);color:#fff">Totalt ${total}</span>${guests.length ? `<span class="chip" style="background:#067647" title="Invitasjon sendt">Invitert ${guests.filter(g => g.invitert_tid).length}/${guests.length}</span>` : ''}</div>`;
+  const sum = `<div class="gsum">${Object.entries(GST).map(([k, v]) => `<button type="button" class="chip gchipbtn ${gFilter === k ? 'act' : ''}" data-gst="${k}" title="${gFilter === k ? 'Fjern filter' : 'Vis bare ' + v.n.toLowerCase()}" style="background:${v.c}">${v.n} ${sumBy(k)}</button>`).join('')}<button type="button" class="chip gchipbtn ${!gFilter ? 'act' : ''}" data-gst="" title="Vis alle" style="background:var(--muted);color:#fff">Totalt ${total}</button>${guests.length ? `<button type="button" class="chip gchipbtn ${gFilter === 'inv' ? 'act' : ''}" data-gst="inv" title="${gFilter === 'inv' ? 'Fjern filter' : 'Vis de som er invitert'}" style="background:#067647">Invitert ${guests.filter(g => g.invitert_tid).length}/${guests.length}</button>` : ''}</div>`;
   const gsum = groups.length ? `<div class="gsum">${groups.map(x => `<button type="button" class="chip gchipbtn ${gGrp === x.id ? 'act' : ''}" data-gtag="${x.id}" title="${gGrp === x.id ? 'Fjern filter' : 'Vis gruppen'}" style="background:${esc(x.farge)}">${esc(x.navn)} ${guests.filter(g => g.gruppe_id === x.id).reduce((n, g) => n + g.antall, 0)}</button>`).join('')}</div>` : '';
   let body;
   if (gTab === 'liste') {
     body = `<div class="gliste">${store.get('oppg_guide_g') ? '' : '<div class="ghint"><span>👋 Ny her? Ta en rask guide om gjester og bord.</span><button class="btn primary" id="gHintGo" type="button">Start guide</button><button class="btn" id="gHintNo" type="button">Ikke nå</button></div>'}${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
       ${groups.length ? `<select id="gGrpNew" aria-label="Gruppe"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gNewGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>` : ''}</form>
-      <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select>
+      <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}<option value="inv" ${gFilter === 'inv' ? 'selected' : ''}>Invitert</option><option value="ikkeinv" ${gFilter === 'ikkeinv' ? 'selected' : ''}>Ikke invitert</option></select>
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>
         <select id="gSort" aria-label="Sorter">${[['navn', '↕ Navn'], ['svar', '↕ Svar'], ['bord', '↕ Bord'], ['gruppe', '↕ Gruppe'], ['nyeste', '↕ Nyeste'], ['rel', '↕ Relasjoner']].map(([k, v]) => `<option value="${k}" ${gSort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
       <div id="gFilBar">${gFilBarHtml()}</div><div id="gList">${gListHtml()}</div></div>`;
@@ -1171,6 +1171,7 @@ function renderGuests() {
   $('#gCsv', el).onclick = exportGuests;
   $('#gHelp', el).onclick = guideMenu;
   $('#gManage', el).onclick = manageGroups; $('#gLinks', el).onclick = showRsvpLinks; $('#gFood', el).onclick = showFood; $('#gInv', el).onclick = editInvite;
+  el.querySelectorAll('[data-gst]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); const v = x.dataset.gst; gFilter = (!v || (gFilter === v && gTab === 'liste')) ? '' : v; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtag]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); if (dragging || Date.now() - lastDrop < 400) return; const id = x.dataset.gtag; gGrp = (gGrp === id && gTab === 'liste') ? '' : id; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
   if (gTab === 'liste') {
