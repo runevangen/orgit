@@ -250,6 +250,12 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .kcard .khead{margin-bottom:6px}.kcard small{color:var(--muted)}
 .krel{display:block;width:100%;text-align:left;background:var(--col);border:0;border-radius:10px;padding:9px 10px;margin-top:6px;font:inherit;color:var(--text);cursor:pointer}
 .khbtn{display:flex;gap:8px;margin-top:10px}.khbtn .btn{flex:1}
+.kgroups{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px}
+.kgt{font-size:12px;color:var(--muted);font-weight:600;margin-right:2px}
+.kgb{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 11px 5px 8px;font:inherit;font-size:13px;color:var(--text);cursor:pointer}
+.kgb i{width:14px;height:14px;border-radius:50%;display:inline-block}
+.kgb small{color:var(--muted)}
+.kgb.on{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text)}
 .klegend{display:flex;gap:6px 16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
 .kl{display:inline-block;width:22px;height:0;border-top:3px solid #12b76a;vertical-align:middle;margin-right:4px}
 .kl.r{border-top:3px dashed #e5484d}
@@ -1252,7 +1258,7 @@ function kartHtml() {
     <div class="kfil2"><label class="remember"><input type="checkbox" id="kAlle" ${kart.alle ? 'checked' : ''}> Vis de uten relasjoner</label><label class="remember"><input type="checkbox" id="kSkjul" ${kart.skjul ? 'checked' : ''}> Skjul de som ikke kommer</label>
     <span class="kzoom"><button class="btn" id="kZm" aria-label="Zoom ut">−</button><button class="btn" id="kZp" aria-label="Zoom inn">+</button></span></div>
     <div class="kwrap" id="kWrap"></div><div class="kinfo" id="kInfo"></div><div class="kmiss" id="kMiss"></div>
-    <div class="klegend"><span><i class="kl g"></i> skal sitte sammen</span><span><i class="kl r"></i> bør ikke sitte sammen</span><span><i class="ks"></i> stiplet ring = ingen relasjoner ennå</span><span><b>⚠</b> brudd i bordplanen</span><span>Ring = svar (grønn kommer, gul kanskje, grå venter)</span></div></div>`;
+    <div class="kgroups" id="kGroups"></div><div class="klegend"><span><i class="kl g"></i> skal sitte sammen</span><span><i class="kl r"></i> bør ikke sitte sammen</span><span><i class="ks"></i> stiplet ring = ingen relasjoner ennå</span><span><b>⚠</b> brudd i bordplanen</span><span>Ring = svar (grønn kommer, gul kanskje, grå venter)</span></div></div>`;
 }
 function bindKart(el) {
   const wrap = $('#kWrap', el), info = $('#kInfo', el);
@@ -1286,6 +1292,10 @@ function bindKart(el) {
   const byG = {}; miss.forEach(g => { const k = g.gruppe_id || '_'; (byG[k] = byG[k] || []).push(g); });
   missBox.innerHTML = miss.length ? `<div class="kcard"><b>Mangler relasjoner (${miss.length})</b><div class="kmg">${Object.entries(byG).map(([k, l]) => { const x = grp(k === '_' ? null : k); return `<div class="kmrow"><span class="gtag" style="background:${x ? esc(x.farge) : '#98a2b3'};margin:0">${x ? esc(x.navn) : 'Uten gruppe'}</span>${l.map(g => `<button type="button" class="kmb ${g.id === kart.sel ? 'on' : ''}" data-km="${g.id}">${esc(g.navn)}</button>`).join('')}</div>`; }).join('')}</div></div>` : (guests.length ? '<p style="color:var(--muted);margin:10px 0 0;font-size:13px">✓ Alle har minst én relasjon.</p>' : '');
   missBox.querySelectorAll('[data-km]').forEach(b => b.onclick = () => { kart.sel = b.dataset.km; renderGuests(); });
+  const gcnt = id => guests.filter(g => (id === '_' ? !g.gruppe_id : g.gruppe_id === id) && !(kart.skjul && g.status === 'kommer_ikke')).length;
+  const items = [...groups.map(x => ({ id: x.id, navn: x.navn, farge: x.farge })), ...(guests.some(g => !g.gruppe_id) ? [{ id: 'none', navn: 'Uten gruppe', farge: '#98a2b3', key: '_' }] : [])];
+  $('#kGroups', el).innerHTML = items.length ? `<span class="kgt">Grupper:</span>${items.map(x => `<button type="button" class="kgb ${kart.grp === x.id ? 'on' : ''}" data-kgf="${x.id}" title="${kart.grp === x.id ? 'Vis alle grupper' : 'Vis bare ' + esc(x.navn)}"><i style="background:${esc(x.farge)}"></i>${esc(x.navn)} <small>${gcnt(x.key || x.id)}</small></button>`).join('')}` : '';
+  el.querySelectorAll('[data-kgf]').forEach(b => b.onclick = () => { kart.grp = kart.grp === b.dataset.kgf ? '' : b.dataset.kgf; kart.pos = {}; renderGuests(); });
   showInfo();
   // interaksjon: trykk for å velge, dra for å flytte
   const svg = $('#kSvg', el);
