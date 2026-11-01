@@ -149,6 +149,10 @@ body.dragging #board{scroll-snap-type:none}
 .gadd{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .gadd #gNavn{flex:1 1 140px;min-width:0}
 .gadd #gGrpNew{flex:1 1 100%}
+.gtag{cursor:pointer}
+button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
+.chip.act{outline:3px solid var(--text);outline-offset:1px}
+.klink{background:none;border:0;padding:0;font:inherit;color:var(--accent);text-decoration:underline;cursor:pointer}
 .gtag{display:inline-block;color:#fff;font-size:11px;font-weight:600;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
 .gadd #gAntall{width:70px;flex:none}
 .gadd .btn{white-space:nowrap}
@@ -1035,7 +1039,7 @@ function relIssues() {
   return out;
 }
 const grp = id => groups.find(x => x.id === id);
-const gTag = g => { const x = grp(g.gruppe_id); return x ? `<span class="gtag" style="background:${esc(x.farge)}">${esc(x.navn)}</span>` : ''; };
+const gTag = g => { const x = grp(g.gruppe_id); return x ? `<span class="gtag" data-gtag="${x.id}" title="Vis gruppen ${esc(x.navn)}" style="background:${esc(x.farge)}">${esc(x.navn)}</span>` : ''; };
 const seatsUsed = tid => guests.filter(g => g.bord_id === tid && g.status !== 'kommer_ikke').reduce((n, g) => n + g.antall, 0);
 const sumBy = st => guests.filter(g => g.status === st).reduce((n, g) => n + g.antall, 0);
 function openGuests() { guestsOpen = true; $('#guests').classList.remove('hidden'); renderGuests(); }
@@ -1067,7 +1071,7 @@ function renderGuests() {
   const b = boards.find(x => x.id === boardId);
   const total = guests.reduce((n, g) => n + g.antall, 0);
   const sum = `<div class="gsum">${Object.entries(GST).map(([k, v]) => `<span class="chip" style="background:${v.c}">${v.n} ${sumBy(k)}</span>`).join('')}<span class="chip" style="background:var(--muted);color:#fff">Totalt ${total}</span>${guests.length ? `<span class="chip" style="background:#067647" title="Invitasjon sendt">Invitert ${guests.filter(g => g.invitert_tid).length}/${guests.length}</span>` : ''}</div>`;
-  const gsum = groups.length ? `<div class="gsum">${groups.map(x => `<span class="chip" style="background:${esc(x.farge)}">${esc(x.navn)} ${guests.filter(g => g.gruppe_id === x.id).reduce((n, g) => n + g.antall, 0)}</span>`).join('')}</div>` : '';
+  const gsum = groups.length ? `<div class="gsum">${groups.map(x => `<button type="button" class="chip gchipbtn ${gGrp === x.id ? 'act' : ''}" data-gtag="${x.id}" title="${gGrp === x.id ? 'Fjern filter' : 'Vis gruppen'}" style="background:${esc(x.farge)}">${esc(x.navn)} ${guests.filter(g => g.gruppe_id === x.id).reduce((n, g) => n + g.antall, 0)}</button>`).join('')}</div>` : '';
   let body;
   if (gTab === 'liste') {
     body = `<div class="gliste">${store.get('oppg_guide_g') ? '' : '<div class="ghint"><span>👋 Ny her? Ta en rask guide om gjester og bord.</span><button class="btn primary" id="gHintGo" type="button">Start guide</button><button class="btn" id="gHintNo" type="button">Ikke nå</button></div>'}${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
@@ -1098,6 +1102,7 @@ function renderGuests() {
   $('#gCsv', el).onclick = exportGuests;
   $('#gHelp', el).onclick = guideMenu;
   $('#gManage', el).onclick = manageGroups; $('#gLinks', el).onclick = showRsvpLinks; $('#gFood', el).onclick = showFood; $('#gInv', el).onclick = editInvite;
+  el.querySelectorAll('[data-gtag]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); if (dragging || Date.now() - lastDrop < 400) return; const id = x.dataset.gtag; gGrp = (gGrp === id && gTab === 'liste') ? '' : id; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
   if (gTab === 'liste') {
     $('#gAddForm', el).onsubmit = async e => { e.preventDefault(); gNewGrp = ($('#gGrpNew', el) || {}).value || ''; await addGuest($('#gNavn', el).value, +$('#gAntall', el).value || 1, gNewGrp); setTimeout(() => $('#gNavn')?.focus(), 0); };
@@ -1252,9 +1257,10 @@ function bindKart(el) {
     const g = guests.find(x => x.id === kart.sel);
     if (!g) { info.innerHTML = nodes.length ? '<p style="color:var(--muted);margin:0">Trykk på en person for å se hvem de er knyttet til. Dra personene for å flytte dem.</p>' : ''; return; }
     const rs = relsOf(g.id).map(r => ({ r, o: relOther(r, g.id) })).filter(x => x.o);
-    info.innerHTML = `<div class="kcard"><div class="khead"><b>${esc(g.navn)}</b>${g.antall > 1 ? `<small> +${g.antall - 1}</small>` : ''}<small> · ${GST[g.status].n}${g.bord_id ? ' · ' + esc(tName(g.bord_id)) : ''}${grp(g.gruppe_id) ? ' · ' + esc(grp(g.gruppe_id).navn) : ''}</small></div>
+    info.innerHTML = `<div class="kcard"><div class="khead"><b>${esc(g.navn)}</b>${g.antall > 1 ? `<small> +${g.antall - 1}</small>` : ''}<small> · ${GST[g.status].n}${g.bord_id ? ' · ' + esc(tName(g.bord_id)) : ''}${grp(g.gruppe_id) ? ` · <button type="button" class="klink" data-kg="${g.gruppe_id}">${esc(grp(g.gruppe_id).navn)}</button>` : ''}</small></div>
       ${rs.map(x => `<button class="krel" data-ko="${x.o.id}">${RELT[x.r.type].i} ${RELT[x.r.type].n.toLowerCase()}: <b>${esc(x.o.navn)}</b>${bad.has([g.id, x.o.id].sort().join('|')) ? ' ⚠' : ''}</button>`).join('') || '<p style="color:var(--muted);margin:6px 0">Ingen relasjoner ennå.</p>'}
       <div class="khbtn"><button class="btn" id="kOpen">Åpne gjest</button><button class="btn primary" id="kNew">+ Ny relasjon</button></div></div>`;
+    info.querySelectorAll('[data-kg]').forEach(x => x.onclick = () => { kart.grp = x.dataset.kg; kart.pos = {}; renderGuests(); });
     $('#kOpen', info).onclick = () => editGuest(g.id); $('#kNew', info).onclick = () => addRelation(g.id);
     info.querySelectorAll('[data-ko]').forEach(b => b.onclick = () => { kart.sel = b.dataset.ko; renderGuests(); });
   };
