@@ -229,6 +229,7 @@ body.dragging #board{scroll-snap-type:none}
 .invbox .frist{margin-top:8px;color:var(--muted);font-size:13px}
 .gtb{display:inline-block;border:1px dashed var(--line);background:transparent;border-radius:6px;padding:1px 8px;font-size:12px;color:var(--muted);margin-top:4px;cursor:pointer}
 .gtb.set{background:var(--col);border-style:solid;color:var(--text)}
+.gseat.gdroptarget{outline:3px solid var(--accent)!important;outline-offset:2px;border-radius:50%;background:rgba(79,124,255,.18)!important}
 .gdroptarget{outline:3px solid var(--accent)!important;outline-offset:-3px;background:rgba(79,124,255,.10)!important}
 .gdrag{opacity:.35}
 .gghost.gchip,.gghost.gseat{cursor:grabbing}
@@ -1073,7 +1074,7 @@ function renderGuests() {
     el.querySelectorAll('[data-gview]').forEach(x => x.onclick = () => { gView = x.dataset.gview; renderGuests(); });
     el.querySelectorAll('[data-seat-g]').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) editGuest(x.dataset.seatG); });
     if (gView !== 'liste') bindGuestDrag(el);
-    el.querySelectorAll('[data-seat-e]').forEach(x => x.onclick = () => seatPicker(x.dataset.seatE));
+    el.querySelectorAll('[data-seat-e]').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) seatPicker(x.dataset.seatE, +x.dataset.seatK); });
     if (gView === 'liste') el.querySelectorAll('.gseats').forEach(l => new Sortable(l, {
       group: 'gjest', animation: 150, draggable: '.gchip', ghostClass: 'ghost',
       forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4, delay: 150, delayOnTouchOnly: true, touchStartThreshold: 8,
@@ -1092,6 +1093,7 @@ async function addGuest(navn, antall, gruppe) {
 async function saveGuest(id, patch) {
   const g = guests.find(x => x.id === id); if (!g) return;
   if (patch.status === 'kommer_ikke') patch.bord_id = null;
+  if (patch.bord_id !== undefined && patch.plass === undefined) patch.plass = null;
   const before = { ...g }; Object.assign(g, patch); renderGuests();
   const { error } = await sb.from('oppg_gjester').update(patch).eq('id', id);
   if (fail(error, 'kunne ikke lagre')) { Object.assign(g, before); renderGuests(); }
@@ -1142,16 +1144,26 @@ function editGuest(id) {
     guests = guests.filter(x => x.id !== id); relations = relations.filter(r => r.a_id !== id && r.b_id !== id); closeModal(); renderGuests();
   };
 }
+function seatSlots(t, list) {
+  const total = list.reduce((x, g) => x + g.antall, 0), n = Math.max(t.plasser, total), slots = new Array(n).fill(null);
+  const free = from => { for (let d = 0; d < n; d++) { const k = (from + d) % n; if (!slots[k]) return k; } return -1; };
+  const put = (g, from) => { let k = from; for (let i = 0; i < g.antall; i++) { k = free(k); if (k < 0) return; slots[k] = { g, i }; } };
+  list.filter(g => g.plass != null).sort((a, b) => a.plass - b.plass || a.navn.localeCompare(b.navn, 'nb')).forEach(g => put(g, Math.min(Math.max(g.plass, 0), n - 1)));
+  list.filter(g => g.plass == null).forEach(g => put(g, 0));
+  return slots;
+}
+function slotOf(g) { const t = tables.find(x => x.id === g.bord_id); if (!t) return -1; const sl = seatSlots(t, tableList(t)); return sl.findIndex(s => s && s.g.id === g.id && !s.i); }
+function tableList(t) { return guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').sort((a, b) => ((grp(a.gruppe_id) || { navn: '\uffff' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '\uffff' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb')); }
 function planParts(t) {
   const byGrp = (a, b) => ((grp(a.gruppe_id) || { navn: '\uffff' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '\uffff' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb');
   const list = guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').sort(byGrp);
-  const slots = []; list.forEach(g => { for (let i = 0; i < g.antall; i++) slots.push({ g, i }); });
-  const used = slots.length, over = used > t.plasser, n = Math.max(t.plasser, used);
+  const slots = seatSlots(t, list);
+  const used = slots.filter(Boolean).length, over = used > t.plasser, n = slots.length;
   const seat = (k, x, y) => {
     const sl = slots[k], cls = k >= t.plasser ? 'over' : '';
-    if (!sl) return `<button class="gseat ${cls}" style="left:${x}px;top:${y}px" data-seat-e="${t.id}" aria-label="Ledig plass"><span class="gempt">+</span></button>`;
+    if (!sl) return `<button class="gseat ${cls}" style="left:${x}px;top:${y}px" data-seat-e="${t.id}" data-seat-k="${k}" data-seat-t="${t.id}" aria-label="Ledig plass"><span class="gempt">+</span></button>`;
     const first = esc(sl.g.navn.split(' ')[0]), c = (grp(sl.g.gruppe_id) || {}).farge;
-    return `<button class="gseat ${cls}" style="left:${x}px;top:${y}px" data-seat-g="${sl.g.id}" title="${esc(sl.g.navn)}">${gAv(sl.g, 'sm' + (sl.i ? ' ghosty' : ''))}<span class="lbl" style="--gc:${c ? esc(c) : 'transparent'}">${first}${sl.i ? ' +' + sl.i : ''}${!sl.i && gConf.has(sl.g.id) ? ' ⚠' : ''}</span></button>`;
+    return `<button class="gseat ${cls}" style="left:${x}px;top:${y}px" data-seat-g="${sl.g.id}" data-seat-k="${k}" data-seat-t="${t.id}" title="${esc(sl.g.navn)}">${gAv(sl.g, 'sm' + (sl.i ? ' ghosty' : ''))}<span class="lbl" style="--gc:${c ? esc(c) : 'transparent'}">${first}${sl.i ? ' +' + sl.i : ''}${!sl.i && gConf.has(sl.g.id) ? ' ⚠' : ''}</span></button>`;
   };
   const centre = `<b>${esc(t.navn)}</b>${used}/${t.plasser}`;
   let W, H, inner = '';
@@ -1233,12 +1245,12 @@ function elementMenu(id) {
     { label: 'Slett element', danger: true, fn: async () => { const { error } = await sb.from('oppg_elementer').delete().eq('id', id); if (!fail(error)) { elements = elements.filter(x => x.id !== id); renderGuests(); } } }
   ]);
 }
-function seatPicker(tid) {
+function seatPicker(tid, k) {
   const t = tables.find(x => x.id === tid); if (!t) return;
   const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => ((grp(a.gruppe_id) || { navn: '\uffff' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '\uffff' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb'));
   if (!unp.length) return toast('Ingen uplasserte gjester');
   const hint = g => { const r = relsOf(g.id).map(x => ({ x, o: relOther(x, g.id) })).filter(y => y.o && y.o.bord_id === tid && y.o.status !== 'kommer_ikke'); const no = r.filter(y => y.x.type === 'ikke_sammen').map(y => y.o.navn), yes = r.filter(y => y.x.type === 'sammen').map(y => y.o.navn); return (no.length ? ' ⛔ ' + no.join(', ') : '') + (yes.length ? ' 💞 ' + yes.join(', ') : ''); };
-  sheet(`Sett ved ${t.navn}`, unp.map(g => ({ label: `${g.navn}${g.antall > 1 ? ' (+' + (g.antall - 1) + ')' : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}${hint(g)}`, fn: () => saveGuest(g.id, { bord_id: tid }) })));
+  sheet(`Sett ved ${t.navn}`, unp.map(g => ({ label: `${g.navn}${g.antall > 1 ? ' (+' + (g.antall - 1) + ')' : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}${hint(g)}`, fn: () => saveGuest(g.id, { bord_id: tid, plass: k }) })));
 }
 const fmtDato = d => { if (!d) return ''; const t = new Date(d + 'T00:00:00').toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
 function editInvite() {
@@ -1478,7 +1490,7 @@ function bindGuestDrag(el) {
         if (ghost) ghost.remove(); src.classList.remove('gdrag'); if (hover) hover.classList.remove('gdroptarget');
         gDrag = null; dragging = false; document.body.classList.remove('dragging');
       };
-      const target = () => { ghost.style.display = 'none'; const t = document.elementFromPoint(lastX, lastY); ghost.style.display = ''; return t && t.closest ? t.closest('[data-droptbl],[data-dropunp]') : null; };
+      const target = () => { ghost.style.display = 'none'; const t = document.elementFromPoint(lastX, lastY); ghost.style.display = ''; return t && t.closest ? t.closest('[data-seat-k],[data-droptbl],[data-dropunp]') : null; };
       const tick = () => {
         if (!active) return;
         const sc = el.querySelector('.gbody') || el, r = sc.getBoundingClientRect();
@@ -1503,6 +1515,7 @@ function bindGuestDrag(el) {
         const was = active, t = was ? target() : null; cleanup(); if (!was) return;
         lastDrop = Date.now();
         const g = guests.find(x => x.id === gid); if (!g || !t) return;
+        if (t.dataset.seatK != null) { dropOnSeat(g, t.dataset.seatT, +t.dataset.seatK); return; }
         if (t.dataset.droptbl) { if (t.dataset.droptbl !== g.bord_id) saveGuest(gid, { bord_id: t.dataset.droptbl }); }
         else if (t.hasAttribute('data-dropunp') && g.bord_id) saveGuest(gid, { bord_id: null });
       };
@@ -1510,6 +1523,14 @@ function bindGuestDrag(el) {
       if (touch) timer = setTimeout(() => { if (!active) start(); }, 220);
     });
   });
+}
+function dropOnSeat(g, tid, k) {
+  const t = tables.find(x => x.id === tid); if (!t) return;
+  const slots = seatSlots(t, tableList(t)), occ = slots[k];
+  if (occ && occ.g.id === g.id) return;
+  const fromK = g.bord_id === tid ? slotOf(g) : -1;
+  saveGuest(g.id, { bord_id: tid, plass: k });
+  if (occ && occ.g.id !== g.id) saveGuest(occ.g.id, { plass: fromK >= 0 && !occ.i ? fromK : null });
 }
 function pickTable(id) {
   const g = guests.find(x => x.id === id); if (!g) return;
@@ -1668,9 +1689,8 @@ async function buildPlanCanvas(o) {
   const measure = document.createElement('canvas').getContext('2d'); measure.font = `13px ${FONT}`;
   // oppsett av bordceller
   const cells = tables.map(t => {
-    const list = seated.filter(g => g.bord_id === t.id).sort(byGrp), slots = [];
-    list.forEach(g => { for (let i = 0; i < g.antall; i++) slots.push({ g, i }); });
-    const n = Math.max(t.plasser, slots.length);
+    const list = seated.filter(g => g.bord_id === t.id).sort(byGrp), slots = seatSlots(t, list);
+    const n = slots.length;
     if (t.form === 'rektangel' && t.retning === 'staende') { const left = Math.ceil(n / 2), right = n - left, per = 62; return { t, list, slots, n, left, right, per, vert: true, w: 380, h: Math.max(300, Math.max(left, right) * per + 50) }; }
     if (t.form === 'rektangel') { const top = Math.ceil(n / 2), bot = n - top, per = o.full ? 110 : 88; return { t, list, slots, n, top, bot, per, w: Math.max(300, Math.max(top, bot) * per + 40), h: 312 }; }
     const R = Math.max(74, n * 62 / (2 * Math.PI)); return { t, list, slots, n, R, w: Math.ceil(2 * R + 250), h: Math.ceil(2 * R + 140) };
@@ -1695,7 +1715,7 @@ async function buildPlanCanvas(o) {
   // navneliste
   const blocks = [];
   if (o.list) {
-    cells.forEach(c => blocks.push({ title: `${c.t.navn} (${c.slots.length}/${c.t.plasser})`, lines: c.list.map(g => `${g.navn}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}`) }));
+    cells.forEach(c => blocks.push({ title: `${c.t.navn} (${c.slots.filter(Boolean).length}/${c.t.plasser})`, lines: c.list.map(g => `${g.navn}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}`) }));
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort(byGrp);
     if (unp.length) blocks.push({ title: 'Ikke plassert', lines: unp.map(g => `${g.navn}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}`) });
   }
@@ -1732,7 +1752,7 @@ async function buildPlanCanvas(o) {
     ctx.fillStyle = '#667085'; ctx.font = `700 ${Math.min(22, Math.max(13, z.h / 3))}px ${FONT}`; ctx.textAlign = 'center'; ctx.fillText(wrapText(ctx, z.e.navn, z.w - 16, 1)[0], z.X + z.w / 2, z.Y + z.h / 2 + 6);
   });
   cells.forEach(c => {
-    const t = c.t, over = c.slots.length > t.plasser, ox = c.x, oy = c.y;
+    const t = c.t, over = c.slots.filter(Boolean).length > t.plasser, ox = c.x, oy = c.y;
     ctx.lineWidth = 3; ctx.strokeStyle = over ? '#d92d20' : '#c3c8d4'; ctx.fillStyle = '#f4f5f8';
     const centre = (cx, cy) => { ctx.textAlign = 'center'; ctx.fillStyle = '#1b1f29'; ctx.font = `700 17px ${FONT}`; ctx.fillText(wrapText(ctx, t.navn, 120, 1)[0], cx, cy - 2); ctx.fillStyle = over ? '#d92d20' : '#667085'; ctx.font = `14px ${FONT}`; ctx.fillText(`${c.slots.length}/${t.plasser}`, cx, cy + 18); };
     const seat = (k, cx, cy, mode, dx) => { const sl = c.slots[k]; if (!sl) { empty(cx, cy, k >= t.plasser); return; } avatar(cx, cy, sl.g, sl.i > 0); label(sl.g, sl.i, cx, cy, mode, dx); };
