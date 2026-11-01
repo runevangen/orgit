@@ -244,6 +244,37 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .kwrap svg{display:block;margin:0 auto}
 .khl{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
 .kh{pointer-events:none}
+.gameov{position:fixed;inset:0;z-index:260;background:var(--bg);display:flex;flex-direction:column;overflow:auto;padding-bottom:env(safe-area-inset-bottom)}
+body.noscroll{overflow:hidden}
+.gamehead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+.gamehead small{font-weight:500;color:var(--muted)}
+.gamebody{max-width:520px;width:100%;margin:0 auto;padding:12px 16px 28px}
+.gamehint{color:var(--muted);font-size:13px;margin:0 0 8px}
+.gameprog{height:6px;background:var(--col);border-radius:99px;overflow:hidden;margin:8px 0 4px}.gameprog div{height:100%;background:var(--accent)}
+.gamecount{font-size:12px;color:var(--muted);margin-bottom:10px}
+.gamestage{position:relative;height:min(52vh,420px);display:grid;place-items:center;margin:6px 0 14px;touch-action:none}
+.gcard{position:relative;width:min(100%,340px);background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:0 10px 30px rgba(16,24,40,.18);padding:26px 18px;text-align:center;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+.gcard h2{margin:12px 0 6px;font-size:26px}
+.gcav .gav{width:92px;height:92px;font-size:38px;margin:0 auto}
+.gcmeta{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:center;color:var(--muted)}
+.gcnote{color:var(--muted);font-size:14px;margin:10px 0 0}
+.gstamp{position:absolute;top:16px;font-weight:900;font-size:20px;border:4px solid;border-radius:10px;padding:2px 10px;opacity:0;pointer-events:none;letter-spacing:.04em}
+.gstamp.yes{left:14px;color:#12b76a;transform:rotate(-12deg)}
+.gstamp.no{right:14px;color:#d92d20;transform:rotate(12deg)}
+.gstamp.maybe{left:50%;top:auto;bottom:16px;color:#b78a00;transform:translateX(-50%)}
+.gamebtns{display:flex;justify-content:center;gap:22px}
+.gamebtns .btn{width:68px;height:68px;border-radius:50%;font-size:28px;padding:0;border-width:3px}
+.gamebtns .gno{border-color:#d92d20;color:#d92d20}.gamebtns .gyes{border-color:#12b76a;color:#12b76a}.gamebtns .gmaybe{border-color:#e5b400;color:#b78a00}
+.gamebtns2{display:flex;gap:8px;justify-content:center;margin-top:14px}
+.gamedone{text-align:center;padding:30px 10px}.gamedone .big{font-size:56px}
+.gres{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
+.gbig{font-size:54px;font-weight:900;line-height:1;color:var(--accent)}
+.gseatbar{height:12px;background:var(--col);border-radius:99px;overflow:hidden}.gseatbar div{height:100%;background:var(--accent)}
+.gtab{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.gtab>div{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:14px}.gtab>div:last-child{border:0}
+.gtab b{margin-left:auto}.gd{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
+.grow{display:grid;grid-template-columns:110px 1fr auto;gap:8px;align-items:center;margin-bottom:6px}
+.gbar{display:flex;height:12px;background:var(--col);border-radius:99px;overflow:hidden}.gbar i{display:block;height:100%}
 .kn{cursor:grab}.kn.dim,.ke.dim{opacity:.18}
 .kn.sel circle{stroke-width:6}
 .klbl{fill:var(--text);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round;pointer-events:none}
@@ -1162,14 +1193,14 @@ function renderGuests() {
       <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
   }
-  el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gHelp" title="Guide" aria-label="Guide">❓</button><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
+  el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gGuess" title="Gjetteleken (beta): gjett hvem som kommer" aria-label="Gjetteleken">🎲</button><button class="btn" id="gHelp" title="Guide" aria-label="Guide">❓</button><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
     <div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bordplassering</button><button class="btn ${gTab === 'kart' ? 'on' : ''}" data-gtab="kart">Relasjoner</button></div><div class="gtools"><button class="btn" id="gManage" type="button">👥 Grupper</button>
       <button class="btn" id="gInv" type="button">📅 Invitasjon</button>
       <button class="btn" id="gLinks" type="button">✉ Svarlenker</button>
       <button class="btn" id="gFood" type="button">🍽 Matvalg</button></div></div><div class="gbody">${body}</div>`;
   $('#gBack', el).onclick = closeGuests;
   $('#gCsv', el).onclick = exportGuests;
-  $('#gHelp', el).onclick = guideMenu;
+  $('#gHelp', el).onclick = guideMenu; $('#gGuess', el).onclick = openGuess;
   $('#gManage', el).onclick = manageGroups; $('#gLinks', el).onclick = showRsvpLinks; $('#gFood', el).onclick = showFood; $('#gInv', el).onclick = editInvite;
   el.querySelectorAll('[data-gst]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); const v = x.dataset.gst; gFilter = (!v || (gFilter === v && gTab === 'liste')) ? '' : v; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtag]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); if (dragging || Date.now() - lastDrop < 400) return; const id = x.dataset.gtag; gGrp = (gGrp === id && gTab === 'liste') ? '' : id; gTab = 'liste'; renderGuests(); }, true));
@@ -1373,6 +1404,85 @@ function bindKart(el) {
   $('#kSkjul', el).onchange = e => { kart.skjul = e.target.checked; kart.pos = {}; renderGuests(); };
   $('#kZm', el).onclick = () => { kart.zoom = Math.max(0.4, kart.zoom - 0.2); renderGuests(); };
   $('#kZp', el).onclick = () => { kart.zoom = Math.min(2.4, kart.zoom + 0.2); renderGuests(); };
+}
+/* ---------- Gjetteleken (beta): sveip hvem du tror kommer ---------- */
+const gjettKey = () => 'oppg_gjett_' + boardId;
+const gjettLoad = () => { try { return JSON.parse(localStorage.getItem(gjettKey()) || '{}') || {}; } catch (e) { return {}; } };
+const gjettSave = o => { try { localStorage.setItem(gjettKey(), JSON.stringify(o)); } catch (e) { toast('Kunne ikke lagre gjettene på denne enheten'); } };
+function openGuess() {
+  let guess = gjettLoad(), withAnswered = false, hist = [], view = 'deck'; const skip = [];
+  const ov = document.createElement('div'); ov.className = 'gameov'; ov.id = 'gameov'; document.body.appendChild(ov);
+  const close = () => { document.removeEventListener('keydown', key); ov.remove(); document.body.classList.remove('noscroll'); };
+  const pool = () => guests.filter(g => g.status !== 'kommer_ikke' && (withAnswered || g.status === 'venter')).sort((a, b) => ((grp(a.gruppe_id) || { navn: '￿' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '￿' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb'));
+  const todo = () => { const l = pool().filter(g => !guess[g.id]); return [...l.filter(g => !skip.includes(g.id)), ...l.filter(g => skip.includes(g.id))]; };
+  const commit = (g, v) => { guess[g.id] = v; hist.push(g.id); gjettSave(guess); draw(); };
+  const key = e => { if (view !== 'deck') return; const g = todo()[0]; if (!g) return; if (e.key === 'ArrowRight') commit(g, 'ja'); else if (e.key === 'ArrowLeft') commit(g, 'nei'); else if (e.key === 'ArrowUp') commit(g, 'kanskje'); else if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', key); document.body.classList.add('noscroll');
+  const head = (t) => `<div class="gamehead"><button class="btn" id="gmBack">← Tilbake</button><b>${t}</b><button class="btn" id="gmSw">${view === 'deck' ? 'Resultat' : 'Gjett'}</button></div>`;
+  const stats = () => {
+    const cnt = (f) => guests.filter(f).reduce((n, g) => n + g.antall, 0);
+    const real = { kommer: cnt(g => g.status === 'kommer'), kanskje: cnt(g => g.status === 'kanskje'), nei: cnt(g => g.status === 'kommer_ikke') };
+    const act = guests.filter(g => g.status !== 'kommer_ikke');
+    const gj = v => cnt(g => g.status !== 'kommer_ikke' && g.status !== 'kommer' && guess[g.id] === v);
+    const ja = gj('ja'), mb = gj('kanskje'), nei = gj('nei');
+    const open = cnt(g => g.status !== 'kommer_ikke' && g.status !== 'kommer' && !guess[g.id] && (g.status === 'venter'));
+    const unsureReal = cnt(g => g.status === 'kanskje' && !guess[g.id]);
+    const low = real.kommer + ja, mid = Math.round(low + (mb + unsureReal) / 2 + open / 2), high = low + mb + unsureReal + open;
+    const seats = tables.reduce((n, t) => n + (t.plasser || 0), 0);
+    const byG = {}; act.forEach(g => { const k = g.gruppe_id || '_'; const o = byG[k] = byG[k] || { ja: 0, mb: 0, nei: 0, aapen: 0 }; if (g.status === 'kommer') o.ja += g.antall; else if (guess[g.id] === 'ja') o.ja += g.antall; else if (guess[g.id] === 'kanskje') o.mb += g.antall; else if (guess[g.id] === 'nei') o.nei += g.antall; else o.aapen += g.antall; });
+    return { real, ja, mb, nei, open, low, mid, high, seats, byG };
+  };
+  const draw = () => {
+    if (view === 'result') return drawResult();
+    const list = todo(), all = pool(), done = all.length - list.length, g = list[0];
+    ov.innerHTML = head('🎲 Gjetteleken <small>beta</small>') + `<div class="gamebody">
+      <p class="gamehint">Sveip til <b>høyre</b> hvis du tror de kommer, <b>venstre</b> hvis ikke, og <b>opp</b> hvis du er usikker. Dette er bare gjetting: svarene i gjestelisten endres ikke.</p>
+      <label class="remember"><input type="checkbox" id="gmAll" ${withAnswered ? 'checked' : ''}> Ta med de som allerede har svart</label>
+      <div class="gameprog"><div style="width:${all.length ? Math.round(done * 100 / all.length) : 0}%"></div></div><div class="gamecount">${done} av ${all.length} gjettet</div>
+      ${g ? `<div class="gamestage"><div class="gcard" id="gCard"><div class="gstamp yes">KOMMER</div><div class="gstamp no">KOMMER IKKE</div><div class="gstamp maybe">USIKKER</div>
+        <div class="gcav">${gAv(g, 'lg')}</div><h2>${esc(g.navn)}</h2><div class="gcmeta">${gTag(g)}${g.antall > 1 ? `<small>+${g.antall - 1} i følget</small>` : ''}${g.status !== 'venter' ? `<small>har svart: ${GST[g.status].n.toLowerCase()}</small>` : ''}</div>${g.notat ? `<p class="gcnote">${esc(g.notat)}</p>` : ''}</div></div>
+        <div class="gamebtns"><button class="btn gno" id="gmNo" aria-label="Kommer ikke">✖</button><button class="btn gmaybe" id="gmMb" aria-label="Usikker">?</button><button class="btn gyes" id="gmYes" aria-label="Kommer">✔</button></div>
+        <div class="gamebtns2"><button class="btn" id="gmUndo" ${hist.length ? '' : 'disabled'}>↩︎ Angre</button><button class="btn" id="gmSkip">Hopp over</button></div>`
+      : `<div class="gamedone"><div class="big">🎉</div><h2>${all.length ? 'Alle er gjettet!' : 'Ingen å gjette på'}</h2><p>${all.length ? 'Se hva det betyr for størrelsen på lokalet.' : 'Ta med de som har svart, eller legg til flere gjester.'}</p><button class="btn primary" id="gmRes">Se resultat</button><button class="btn" id="gmUndo" ${hist.length ? '' : 'disabled'} style="margin-top:8px">↩︎ Angre siste</button></div>`}</div>`;
+    bind();
+  };
+  const bind = () => {
+    $('#gmBack', ov).onclick = close; $('#gmSw', ov).onclick = () => { view = view === 'deck' ? 'result' : 'deck'; draw(); };
+    const al = $('#gmAll', ov); if (al) al.onchange = e => { withAnswered = e.target.checked; draw(); };
+    const g = todo()[0];
+    const undo = $('#gmUndo', ov); if (undo) undo.onclick = () => { const id = hist.pop(); if (id) { delete guess[id]; gjettSave(guess); draw(); } };
+    const res = $('#gmRes', ov); if (res) res.onclick = () => { view = 'result'; draw(); };
+    if (!g) return;
+    $('#gmNo', ov).onclick = () => fly(-1, 0); $('#gmYes', ov).onclick = () => fly(1, 0); $('#gmMb', ov).onclick = () => fly(0, -1);
+    $('#gmSkip', ov).onclick = () => { if (todo().length > 1) { skip.push(g.id); draw(); } else toast('Dette er siste gjest'); };
+    const card = $('#gCard', ov); let sx = 0, sy = 0, dx = 0, dy = 0, on = false;
+    const stamps = () => { const q = s => card.querySelector('.gstamp.' + s); q('yes').style.opacity = Math.max(0, Math.min(1, dx / 90)); q('no').style.opacity = Math.max(0, Math.min(1, -dx / 90)); q('maybe').style.opacity = Math.max(0, Math.min(1, -dy / 90 - Math.abs(dx) / 200)); };
+    card.addEventListener('pointerdown', e => { on = true; sx = e.clientX; sy = e.clientY; dx = dy = 0; card.setPointerCapture(e.pointerId); card.style.transition = 'none'; });
+    card.addEventListener('pointermove', e => { if (!on) return; dx = e.clientX - sx; dy = Math.min(0, e.clientY - sy) * 0.8; card.style.transform = `translate(${dx}px,${dy}px) rotate(${dx / 18}deg)`; stamps(); });
+    const end = () => { if (!on) return; on = false; if (dx > 90) return fly(1, 0, dx); if (dx < -90) return fly(-1, 0, dx); if (dy < -90) return fly(0, -1, dx); card.style.transition = 'transform .2s'; card.style.transform = ''; stamps(); };
+    card.addEventListener('pointerup', end); card.addEventListener('pointercancel', end);
+  };
+  const fly = (x, y) => {
+    const g = todo()[0], card = $('#gCard', ov); if (!g || !card) return;
+    card.style.transition = 'transform .22s ease-in, opacity .22s'; card.style.transform = `translate(${x * 520}px,${y * 520}px) rotate(${x * 24}deg)`; card.style.opacity = '0';
+    setTimeout(() => commit(g, x > 0 ? 'ja' : x < 0 ? 'nei' : 'kanskje'), 200);
+  };
+  const drawResult = () => {
+    const s = stats(), rows = Object.entries(s.byG).map(([k, o]) => { const x = grp(k === '_' ? null : k); return { n: x ? x.navn : 'Uten gruppe', c: x ? x.farge : '#98a2b3', ...o, t: o.ja + o.mb + o.nei + o.aapen }; }).sort((a, b) => b.t - a.t);
+    const txt = `Gjetting – hvor mange kommer? (${new Date().toLocaleDateString('nb-NO')})\nSannsynlig: ca. ${s.mid} personer\nMinst: ${s.low} (bare de som kommer eller er gjettet ja)\nMest: ${s.high}\n${s.seats ? 'Plasser ved bordene: ' + s.seats : ''}`;
+    ov.innerHTML = head('Resultat <small>gjetting</small>') + `<div class="gamebody">
+      <div class="gres"><div class="gbig">${s.mid}</div><div>personer kommer sannsynligvis<br><small>mellom <b>${s.low}</b> og <b>${s.high}</b></small></div></div>
+      ${s.seats ? `<div class="gseatbar"><div style="width:${Math.min(100, Math.round(s.mid * 100 / s.seats))}%"></div></div><p class="gamehint">Plasser ved bordene: <b>${s.seats}</b>. ${s.mid > s.seats ? `Du trenger ca. ${s.mid - s.seats} plasser til.` : `Det er ca. ${s.seats - s.mid} ledige plasser.`}</p>` : '<p class="gamehint">Legg inn bord under Bordplassering for å sammenligne med plassene.</p>'}
+      <div class="gtab"><div><span class="gd" style="background:#12b76a"></span>Har svart kommer<b>${s.real.kommer}</b></div><div><span class="gd" style="background:#12b76a;opacity:.55"></span>Gjettet kommer<b>${s.ja}</b></div><div><span class="gd" style="background:#e5b400"></span>Gjettet usikker / svart kanskje<b>${s.mb + s.real.kanskje}</b></div><div><span class="gd" style="background:#d92d20"></span>Gjettet kommer ikke<b>${s.nei}</b></div><div><span class="gd" style="background:#667085"></span>Ikke gjettet ennå<b>${s.open}</b></div></div>
+      <h3 style="margin:14px 0 6px;font-size:15px">Per gruppe</h3>
+      ${rows.map(r => `<div class="grow"><span class="gtag" style="background:${esc(r.c)};margin:0">${esc(r.n)}</span><div class="gbar"><i style="width:${r.t ? r.ja * 100 / r.t : 0}%;background:#12b76a"></i><i style="width:${r.t ? r.mb * 100 / r.t : 0}%;background:#e5b400"></i><i style="width:${r.t ? r.nei * 100 / r.t : 0}%;background:#d92d20"></i></div><small>${r.ja}/${r.mb}/${r.nei}${r.aapen ? '/' + r.aapen : ''}</small></div>`).join('') || '<p class="gamehint">Ingen gjester ennå.</p>'}
+      <p class="gamehint" style="margin-top:6px">Tallene viser <b>ja/usikker/nei</b>${rows.some(r => r.aapen) ? '/ikke gjettet' : ''}. Svarte du at noen kommer ikke, telles de ikke med.</p>
+      <div class="gamebtns2" style="margin-top:12px"><button class="btn" id="gmCopy">Kopier</button><button class="btn" id="gmReset">Start på nytt</button></div></div>`;
+    $('#gmBack', ov).onclick = close; $('#gmSw', ov).onclick = () => { view = 'deck'; draw(); };
+    $('#gmCopy', ov).onclick = async () => toast(await copyText(txt) ? 'Kopiert' : 'Kunne ikke kopiere');
+    $('#gmReset', ov).onclick = () => { if (!confirm('Slette alle gjettene dine på denne enheten?')) return; guess = {}; hist = []; gjettSave(guess); view = 'deck'; draw(); };
+  };
+  draw();
 }
 function seatSlots(t, list) {
   const total = list.reduce((x, g) => x + g.antall, 0), n = Math.max(t.plasser, total), slots = new Array(n).fill(null);
