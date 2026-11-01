@@ -158,6 +158,10 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .gtag{display:inline-block;color:#fff;font-size:11px;font-weight:600;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
 .gadd #gAntall{width:70px;flex:none}
 .gadd .btn{white-space:nowrap}
+.gfil .fon{border-color:var(--accent);background:rgba(79,124,255,.10);box-shadow:inset 0 0 0 1px var(--accent)}
+.filbar{display:flex;gap:8px;align-items:center;justify-content:space-between;background:rgba(79,124,255,.12);border:1px solid var(--accent);border-radius:12px;padding:8px 10px;margin-bottom:8px;font-size:13px}
+.filbar .filcnt{color:var(--muted);white-space:nowrap}
+.filbar .btn{padding:6px 10px;font-size:13px;flex:none}
 .gfil{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
 .gfil input{flex:1 1 100%}
 .gfil select{width:auto;flex:1 1 0;min-width:0;font-size:14px}
@@ -1074,9 +1078,25 @@ function gGuestHtml(g) {
     <button class="gbtn yes ${g.status === 'kommer' ? 'sel' : ''}" data-gs="kommer" data-id="${g.id}" aria-label="Kommer">✔</button>
     <button class="gbtn no ${g.status === 'kommer_ikke' ? 'sel' : ''}" data-gs="kommer_ikke" data-id="${g.id}" aria-label="Kommer ikke">✖</button></div>`;
 }
-function gListHtml() {
+function gFiltered() {
   const q = gQuery.toLowerCase();
-  const list = guests.filter(g => (!gFilter || g.status === gFilter) && (!gGrp || (gGrp === 'none' ? !g.gruppe_id : g.gruppe_id === gGrp)) && (!q || g.navn.toLowerCase().includes(q) || (g.notat || '').toLowerCase().includes(q)));
+  return guests.filter(g => (!gFilter || g.status === gFilter) && (!gGrp || (gGrp === 'none' ? !g.gruppe_id : g.gruppe_id === gGrp)) && (!q || g.navn.toLowerCase().includes(q) || (g.notat || '').toLowerCase().includes(q)));
+}
+function gFilBarHtml() {
+  const tags = [];
+  if (gFilter) tags.push(`Svar: ${GST[gFilter].n}`);
+  if (gGrp) tags.push(gGrp === 'none' ? 'Uten gruppe' : `Gruppe: ${(grp(gGrp) || { navn: '?' }).navn}`);
+  if (gQuery) tags.push(`Søk: «${gQuery}»`);
+  if (!tags.length) return '';
+  return `<div class="filbar"><span class="filtxt">🔎 <b>Filter i bruk</b> · ${tags.map(esc).join(' · ')} <span class="filcnt">Viser ${gFiltered().length} av ${guests.length}</span></span><button type="button" class="btn" id="gFilClr">Fjern filter</button></div>`;
+}
+function gMarkFilters(el) {
+  const on = (id, v) => { const x = $(id, el); if (x) x.classList.toggle('fon', !!v); };
+  on('#gQ', gQuery); on('#gFil', gFilter); on('#gGrpF', gGrp);
+  const bar = $('#gFilBar', el); if (bar) { bar.innerHTML = gFilBarHtml(); const c = $('#gFilClr', bar); if (c) c.onclick = () => { gQuery = ''; gFilter = ''; gGrp = ''; renderGuests(); }; }
+}
+function gListHtml() {
+  const list = gFiltered();
   const ord = { kommer: 0, kanskje: 1, venter: 2, kommer_ikke: 3 }, nm = (a, b) => a.navn.localeCompare(b.navn, 'nb');
   const tn = g => (tables.find(t => t.id === g.bord_id) || { navn: '\uffff' }).navn, gn = g => (groups.find(x => x.id === g.gruppe_id) || { navn: '\uffff' }).navn;
   const cmp = { navn: nm, svar: (a, b) => ord[a.status] - ord[b.status] || nm(a, b), bord: (a, b) => tn(a).localeCompare(tn(b), 'nb', { numeric: true }) || nm(a, b), gruppe: (a, b) => gn(a).localeCompare(gn(b), 'nb') || nm(a, b), nyeste: (a, b) => String(b.opprettet).localeCompare(String(a.opprettet)) }[gSort] || nm;
@@ -1102,7 +1122,7 @@ function renderGuests() {
       <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select>
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>
         <select id="gSort" aria-label="Sorter">${[['navn', '↕ Navn'], ['svar', '↕ Svar'], ['bord', '↕ Bord'], ['gruppe', '↕ Gruppe'], ['nyeste', '↕ Nyeste']].map(([k, v]) => `<option value="${k}" ${gSort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-      <div id="gList">${gListHtml()}</div></div>`;
+      <div id="gFilBar">${gFilBarHtml()}</div><div id="gList">${gListHtml()}</div></div>`;
   } else if (gTab === 'kart') {
     body = kartHtml();
   } else {
@@ -1129,12 +1149,12 @@ function renderGuests() {
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
   if (gTab === 'liste') {
     $('#gAddForm', el).onsubmit = async e => { e.preventDefault(); gNewGrp = ($('#gGrpNew', el) || {}).value || ''; await addGuest($('#gNavn', el).value, +$('#gAntall', el).value || 1, gNewGrp); setTimeout(() => $('#gNavn')?.focus(), 0); };
-    $('#gQ', el).oninput = e => { gQuery = e.target.value.trim(); $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
-    $('#gGrpF', el).onchange = e => { gGrp = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
+    $('#gQ', el).oninput = e => { gQuery = e.target.value.trim(); $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
+    $('#gGrpF', el).onchange = e => { gGrp = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
     if ($('#gHintGo', el)) { $('#gHintGo', el).onclick = () => { store.set('oppg_guide_g', '1'); startTour(TOUR_GUESTS); }; $('#gHintNo', el).onclick = () => { store.set('oppg_guide_g', '1'); renderGuests(); }; }
-    $('#gSort', el).onchange = e => { gSort = e.target.value; try { localStorage.setItem('oppg_gsort', gSort); } catch (x) {} $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
-    $('#gFil', el).onchange = e => { gFilter = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); };
-    bindGuestRows($('#gList', el));
+    $('#gSort', el).onchange = e => { gSort = e.target.value; try { localStorage.setItem('oppg_gsort', gSort); } catch (x) {} $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
+    $('#gFil', el).onchange = e => { gFilter = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
+    bindGuestRows($('#gList', el)); gMarkFilters(el);
   } else if (gTab === 'kart') {
     bindKart(el);
   } else {
