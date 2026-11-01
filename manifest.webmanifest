@@ -1,6 +1,6 @@
 {
-  "name": "Oppgavetavle",
-  "short_name": "Oppgaver",
+  "name": "Orgit",
+  "short_name": "Orgit",
   "description": "Oppgaver, gjesteliste og bordplassering",
   "lang": "nb",
   "start_url": "/",

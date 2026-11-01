@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Oppgaver">
-<title>Oppgavetavle</title>
+<meta name="apple-mobile-web-app-title" content="Orgit">
+<title>Orgit</title>
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -419,7 +419,7 @@ function sheet(title, options) {
 function showAuthLogin(prefill) {
   $('#app').classList.add('hidden'); closeGuests();
   const box = $('#login'); box.classList.remove('hidden');
-  box.innerHTML = `<div class="lbox"><h1>Oppgavetavle</h1><p>Logg inn med e-post. Du får en engangskode.</p>
+  box.innerHTML = `<div class="lbox"><h1>Orgit</h1><p>Logg inn med e-post. Du får en engangskode.</p>
     <form id="aeF"><div class="field"><label>E-post</label><input id="aeE" type="email" inputmode="email" autocomplete="email" autocapitalize="off" required value="${esc(prefill || '')}"></div>
     <div class="err" id="err"></div><button class="btn primary" style="width:100%">Send kode</button></form></div>`;
   $('#aeE', box).focus();
@@ -1450,7 +1450,7 @@ async function showRsvp(token) {
         $('#rIcs', box).onclick = () => {
           const ie = x => String(x || '').replace(/\\/g, '\\\\').replace(/[,;]/g, c => '\\' + c).replace(/\r?\n/g, '\\n');
           const start = g.arr_tid ? `DTSTART:${gS}\r\nDTEND:${gE}` : `DTSTART;VALUE=DATE:${gS}\r\nDTEND;VALUE=DATE:${gE}`;
-          const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Oppgavetavle//NO', 'BEGIN:VEVENT', `UID:${token.slice(0, 20)}@oppgavetavle`, `DTSTAMP:${new Date().toISOString().replace(/[-:]|\.\d+/g, '')}`, start, `SUMMARY:${ie(t)}`, loc ? `LOCATION:${ie(loc)}` : '', det ? `DESCRIPTION:${ie(det)}` : '', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+          const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Orgit//NO', 'BEGIN:VEVENT', `UID:${token.slice(0, 20)}@oppgavetavle`, `DTSTAMP:${new Date().toISOString().replace(/[-:]|\.\d+/g, '')}`, start, `SUMMARY:${ie(t)}`, loc ? `LOCATION:${ie(loc)}` : '', det ? `DESCRIPTION:${ie(det)}` : '', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
           try {
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' })); a.download = 'invitasjon.ics'; a.style.display = 'none'; document.body.appendChild(a); a.click();
             setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
@@ -1764,7 +1764,7 @@ async function buildPlanCanvas(o) {
       (bk.lines.length ? bk.lines : ['–']).forEach((l, k) => ctx.fillText(wrapText(ctx, l, colW - 20, 1)[0], bx, bk.y + 38 + k * 21));
     });
   }
-  ctx.textAlign = 'right'; ctx.fillStyle = '#98a2b3'; ctx.font = `12px ${FONT}`; ctx.fillText('Laget i Oppgavetavle', PW - M, H - 20);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#98a2b3'; ctx.font = `12px ${FONT}`; ctx.fillText('Laget i Orgit', PW - M, H - 20);
   return cv;
 }
 async function planExport() {
