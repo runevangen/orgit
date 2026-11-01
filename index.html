@@ -1593,19 +1593,35 @@ async function copyText(t) {
   try { const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok; } catch { return false; }
 }
 function showFood() {
-  const coming = guests.filter(g => g.status === 'kommer' || g.status === 'kanskje');
-  const by = {}; let none = 0;
-  coming.forEach(g => { if (g.matvalg) by[g.matvalg] = (by[g.matvalg] || 0) + g.antall; else none += g.antall; });
-  const al = guests.filter(g => g.allergier && g.status !== 'kommer_ikke').sort((a, b) => a.navn.localeCompare(b.navn, 'nb'));
-  const txt = [...Object.entries(by).map(([k, v]) => `${k}: ${v}`), none ? `Ikke valgt: ${none}` : '', al.length ? '\nAllergier:' : '', ...al.map(g => `${g.navn} (${g.antall}): ${g.allergier}`)].filter(x => x !== '').join('\n');
-  const m = showModal(`<h2>Matvalg og allergier</h2><p style="color:var(--muted);margin:0 0 10px;font-size:13px">Teller gjester som har svart kommer eller kanskje. Matvalget gjelder hele følget.</p>
-    ${Object.entries(by).map(([k, v]) => `<div class="check"><span>${esc(k)}</span><b>${v}</b></div>`).join('') || '<p style="color:var(--muted)">Ingen har valgt mat ennå. Legg inn valg under Invitasjon.</p>'}
-    ${none ? `<div class="check"><span style="color:var(--muted)">Ikke valgt</span><b>${none}</b></div>` : ''}
-    <h3 style="margin:14px 0 6px;font-size:15px">Allergier og kostholdsbehov</h3>
-    ${al.map(g => `<div class="check"><span><b>${esc(g.navn)}</b> (${g.antall}) <small style="color:var(--muted)">${esc(g.allergier)}</small></span></div>`).join('') || '<p style="color:var(--muted)">Ingen har oppgitt noe.</p>'}
-    <div class="bar"><button type="button" class="btn" id="fdX">Lukk</button><button type="button" class="btn primary" id="fdC">Kopier til kokken</button></div>`);
-  $('#fdX', m).onclick = closeModal;
-  $('#fdC', m).onclick = async () => toast(await copyText(txt) ? 'Kopiert' : 'Kunne ikke kopiere');
+  let onlyComing = false;
+  const m = showModal('<h2>Matvalg og allergier</h2>');
+  const draw = () => {
+    const pool = guests.filter(g => g.status !== 'kommer_ikke' && (!onlyComing || g.status === 'kommer'));
+    const by = {}; let none = null;
+    const add = (o, g) => { o.n += g.antall; o[g.status] = (o[g.status] || 0) + g.antall; };
+    pool.forEach(g => {
+      const v = (g.matvalg || '').trim();
+      if (!v) { none = none || { n: 0 }; add(none, g); return; }
+      const k = v.toLowerCase(); by[k] = by[k] || { navn: v.charAt(0).toUpperCase() + v.slice(1), n: 0 }; add(by[k], g);
+    });
+    const sub = o => [o.kommer ? `${o.kommer} kommer` : '', o.kanskje ? `${o.kanskje} kanskje` : '', o.venter ? `${o.venter} har ikke svart` : ''].filter(Boolean).join(' · ');
+    const rows = Object.values(by).sort((a, b) => b.n - a.n || a.navn.localeCompare(b.navn, 'nb'));
+    const al = pool.filter(g => g.allergier).sort((a, b) => a.navn.localeCompare(b.navn, 'nb'));
+    const total = pool.reduce((n, g) => n + g.antall, 0);
+    const txt = [`Matvalg (${total} personer${onlyComing ? ', bare de som kommer' : ', ikke de som har sagt nei'}):`, ...rows.map(o => `${o.navn}: ${o.n} (${sub(o)})`), none ? `Ikke valgt: ${none.n} (${sub(none)})` : '', al.length ? '\nAllergier:' : '', ...al.map(g => `${g.navn} (${g.antall}${g.status !== 'kommer' ? ', ' + GST[g.status].n.toLowerCase() : ''}): ${g.allergier}`)].filter(x => x !== '').join('\n');
+    m.innerHTML = `<h2>Matvalg og allergier</h2><p style="color:var(--muted);margin:0 0 8px;font-size:13px">Teller alle som ikke har sagt nei, også de som ikke har svart ennå. Matvalget gjelder hele følget.</p>
+      <label class="remember"><input type="checkbox" id="fdOnly" ${onlyComing ? 'checked' : ''}> Bare de som har svart at de kommer</label>
+      <div class="check" style="margin-top:6px"><b>Totalt</b><b>${total}</b></div>
+      ${rows.map(o => `<div class="check"><span>${esc(o.navn)}<br><small style="color:var(--muted)">${esc(sub(o))}</small></span><b>${o.n}</b></div>`).join('') || '<p style="color:var(--muted)">Ingen har valgt mat ennå. Legg inn valg under Invitasjon, eller på hver gjest.</p>'}
+      ${none ? `<div class="check"><span style="color:var(--muted)">Ikke valgt<br><small>${esc(sub(none))}</small></span><b>${none.n}</b></div>` : ''}
+      <h3 style="margin:14px 0 6px;font-size:15px">Allergier og kostholdsbehov</h3>
+      ${al.map(g => `<div class="check"><span><b>${esc(g.navn)}</b> (${g.antall}) <small style="color:var(--muted)">${esc(g.allergier)}${g.status !== 'kommer' ? ' · ' + esc(GST[g.status].n.toLowerCase()) : ''}</small></span></div>`).join('') || '<p style="color:var(--muted)">Ingen har oppgitt noe.</p>'}
+      <div class="bar"><button type="button" class="btn" id="fdX">Lukk</button><button type="button" class="btn primary" id="fdC">Kopier til kokken</button></div>`;
+    $('#fdX', m).onclick = closeModal;
+    $('#fdOnly', m).onchange = e => { onlyComing = e.target.checked; draw(); };
+    $('#fdC', m).onclick = async () => toast(await copyText(txt) ? 'Kopiert' : 'Kunne ikke kopiere');
+  };
+  draw();
 }
 function showRsvpLinks() {
   if (!guests.length) return toast('Legg til gjester først');
