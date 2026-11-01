@@ -298,6 +298,7 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .invbox .frist{margin-top:8px;color:var(--muted);font-size:13px}
 .gtb{display:inline-block;border:1px dashed var(--line);background:transparent;border-radius:6px;padding:1px 8px;font-size:12px;color:var(--muted);margin-top:4px;cursor:pointer}
 .gtb.set{background:var(--col);border-style:solid;color:var(--text)}
+.chint{display:block;color:#b42318;font-size:12px;font-weight:600;margin:2px 0 0!important}
 .gseat.gdroptarget{outline:3px solid var(--accent)!important;outline-offset:2px;border-radius:50%;background:rgba(79,124,255,.18)!important}
 .gdroptarget{outline:3px solid var(--accent)!important;outline-offset:-3px;background:rgba(79,124,255,.10)!important}
 .gdrag{opacity:.35}
@@ -1065,8 +1066,8 @@ function relIssues() {
   relations.forEach(r => {
     const a = guests.find(g => g.id === r.a_id), b = guests.find(g => g.id === r.b_id);
     if (!a || !b || a.status === 'kommer_ikke' || b.status === 'kommer_ikke') return;
-    if (r.type === 'ikke_sammen' && a.bord_id && a.bord_id === b.bord_id) out.push({ a, b, msg: `${a.navn} og ${b.navn} bør ikke sitte sammen (${tName(a.bord_id)})` });
-    if (r.type === 'sammen' && (a.bord_id || b.bord_id) && a.bord_id !== b.bord_id) out.push({ a, b, msg: `${a.navn} og ${b.navn} skal sitte sammen (${tName(a.bord_id) || 'ikke plassert'} / ${tName(b.bord_id) || 'ikke plassert'})` });
+    if (r.type === 'ikke_sammen' && a.bord_id && a.bord_id === b.bord_id) out.push({ a, b, t: 'ikke', msg: `${a.navn} og ${b.navn} bør ikke sitte sammen (${tName(a.bord_id)})` });
+    if (r.type === 'sammen' && (a.bord_id || b.bord_id) && a.bord_id !== b.bord_id) out.push({ a, b, t: 'sammen', msg: `${a.navn} og ${b.navn} skal sitte sammen (${tName(a.bord_id) || 'ikke plassert'} / ${tName(b.bord_id) || 'ikke plassert'})` });
   });
   return out;
 }
@@ -1150,8 +1151,10 @@ function renderGuests() {
     body = kartHtml();
   } else {
     const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
-    const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
-    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}</div></div>`;
+    const hintOf = {};
+    issues.forEach(i => [[i.a, i.b], [i.b, i.a]].forEach(([x, y]) => { if (!x.bord_id && i.t === 'sammen') (hintOf[x.id] = hintOf[x.id] || []).push(`${y.navn}${y.bord_id ? ' (' + tName(y.bord_id) + ')' : ''}`); }));
+    const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => (gConf.has(b.id) ? 1 : 0) - (gConf.has(a.id) ? 1 : 0) || gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
+    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}${hintOf[g.id] ? `<small class="chint">💞 skal sitte med ${esc(hintOf[g.id].join(', '))}</small>` : ''}</div></div>`;
     const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Bord</button><button class="btn ${gView === 'floor' ? 'on' : ''}" data-gview="floor">Lokale</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
     const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
     body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div><div class="gbtns"><div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
