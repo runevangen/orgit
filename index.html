@@ -364,6 +364,20 @@ body.noscroll{overflow:hidden}
 .pendrow .pn{display:flex;flex-direction:column;margin-bottom:6px}.pendrow small{color:var(--muted)}
 .pmerge{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}.pmerge .btn{text-align:left;padding:8px 10px;font-size:14px}
 .pbtns{display:flex;gap:8px}.pbtns .btn{flex:1;padding:8px}
+#guestBtn{display:none!important}
+#mainnav{display:none}
+#app:not(.hidden) ~ #mainnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;gap:8px;background:var(--surface);border-top:1px solid var(--line);padding:6px 12px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -4px 14px rgba(16,24,40,.06)}
+.navb{flex:1;position:relative;background:none;border:0;border-radius:14px;padding:6px 4px 5px;display:flex;flex-direction:column;align-items:center;gap:1px;font:inherit;color:var(--muted);cursor:pointer;min-height:52px}
+.navb .ni{font-size:22px;line-height:1.1}.navb .nl{font-size:12px;font-weight:700}
+.navb.on{color:var(--accent);background:rgba(79,124,255,.12)}
+.navb[data-n]:not([data-n=""])::after{content:attr(data-n);position:absolute;top:2px;left:calc(50% + 8px);min-width:18px;height:18px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 4px}
+#app:not(.hidden){padding-bottom:calc(66px + env(safe-area-inset-bottom))}
+#app:not(.hidden) ~ #guests{bottom:calc(66px + env(safe-area-inset-bottom))}
+@media (min-width:1000px){
+  #app:not(.hidden) ~ #mainnav{left:50%;right:auto;transform:translateX(-50%);width:340px;bottom:12px;border:1px solid var(--line);border-radius:20px;padding:6px 8px;box-shadow:0 10px 30px rgba(16,24,40,.18)}
+  #app:not(.hidden){padding-bottom:84px}
+  #app:not(.hidden) ~ #guests{bottom:84px}
+}
 #guestBtn{position:relative}
 #guestBtn[data-n]:not([data-n=""])::after{content:attr(data-n);position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 4px}
 .chint{display:block;color:#b42318;font-size:12px;font-weight:600;margin:2px 0 0!important}
@@ -478,6 +492,7 @@ body.noscroll{overflow:hidden}
   <div id="board"></div>
   <div id="dots"></div>
 </div>
+<nav id="mainnav" aria-label="Hovedmeny"><button id="navTasks" type="button" class="navb on"><span class="ni">📋</span><span class="nl">Oppgaver</span></button><button id="navGuests" type="button" class="navb"><span class="ni">👥</span><span class="nl">Gjester</span></button></nav>
 <div id="guests" class="hidden"></div>
 <div id="modalRoot"></div>
 <div id="toast" class="hidden"></div>
@@ -857,7 +872,7 @@ function matches(c, isLast, today) {
 
 /* ---------- Visning ---------- */
 function render() {
-  { const gb = $('#guestBtn'); if (gb) gb.dataset.n = pending.length ? String(pending.length) : ''; }
+  updateNav();
   const b = boards.find(x => x.id === boardId);
   $('#boardBtn').textContent = (b ? b.navn : 'Tavle') + ' ▾';
   $('#mineBtn').classList.toggle('on', onlyMine);
@@ -1160,8 +1175,13 @@ const grp = id => groups.find(x => x.id === id);
 const gTag = g => { const x = grp(g.gruppe_id); return x ? `<span class="gtag" data-gtag="${x.id}" title="Vis gruppen ${esc(x.navn)}" style="background:${esc(x.farge)}">${esc(x.navn)}</span>` : ''; };
 const seatsUsed = tid => guests.filter(g => g.bord_id === tid && g.status !== 'kommer_ikke').reduce((n, g) => n + g.antall, 0);
 const sumBy = st => guests.filter(g => g.status === st).reduce((n, g) => n + g.antall, 0);
-function openGuests() { guestsOpen = true; $('#guests').classList.remove('hidden'); renderGuests(); }
-function closeGuests() { guestsOpen = false; const el = $('#guests'); el.classList.add('hidden'); el.innerHTML = ''; }
+function updateNav() {
+  const t = $('#navTasks'), g = $('#navGuests'); if (!t || !g) return;
+  t.classList.toggle('on', !guestsOpen); g.classList.toggle('on', guestsOpen);
+  g.dataset.n = pending.length ? String(pending.length) : '';
+}
+function openGuests() { guestsOpen = true; $('#guests').classList.remove('hidden'); renderGuests(); updateNav(); }
+function closeGuests() { guestsOpen = false; const el = $('#guests'); el.classList.add('hidden'); el.innerHTML = ''; updateNav(); }
 function gGuestHtml(g) {
   const st = GST[g.status];
   return `<div class="grw" data-g="${g.id}" title="${st.n}">${gAv(g)}
@@ -1738,7 +1758,7 @@ const TOUR_BOARD = [
   { sel: '#boardBtn', title: 'Tavler', text: 'Trykk her for å bytte mellom tavler, lage en ny tavle eller gi den nytt navn.', before: () => closeGuests() },
   { sel: '#searchBtn', title: 'Søk og filter', text: 'Finn kort på tekst. Du kan også filtrere på etikett, ansvarlig, prioritet og frist.' },
   { sel: '#mineBtn', title: 'Mine', text: 'Vis bare kortene du selv er ansvarlig for.' },
-  { sel: '#guestBtn', title: 'Gjester og bord', text: 'Her planlegger du gjesteliste, invitasjon og bordplassering. Det er egne guider for dem.' },
+  { sel: '#navGuests', title: 'Gjester og bord', text: 'Her nederst bytter du mellom Oppgaver og Gjester. Under Gjester planlegger du gjesteliste, invitasjon og bordplassering. Det er egne guider for dem.' },
   { sel: '#meBtn', title: 'Din meny', text: 'Arkiv, aktivitet, eksport, tema og logg ut ligger her.' },
   { sel: '[data-colmenu]', title: 'Kolonnemeny', text: 'Gi kolonnen farge, sett en grense for antall kort, sorter etter prioritet, flytt eller arkiver den.' },
   { sel: '[data-addopen]', title: 'Legg til kort', text: 'Trykk, skriv en tittel og trykk Legg til.' },
@@ -2549,6 +2569,8 @@ $('#dots').onclick = e => { const d = e.target.closest('[data-dot]'); if (!d) re
 $('#boardBtn').onclick = boardMenu;
 $('#meBtn').onclick = meMenu;
 $('#guestBtn').onclick = () => { gTab = 'oversikt'; openGuests(); };
+$('#navGuests').onclick = () => { gTab = 'oversikt'; if (guestsOpen) renderGuests(); else openGuests(); updateNav(); };
+$('#navTasks').onclick = () => { if (guestsOpen) closeGuests(); updateNav(); };
 $('#logoutBtn').onclick = () => { if (confirm('Logge ut?')) logout(); };
 $('#searchBtn').onclick = () => { const bar = $('#searchBar'); bar.classList.toggle('hidden'); if (!bar.classList.contains('hidden')) $('#searchIn').focus(); else { resetFilters(); render(); } };
 $('#searchIn').oninput = e => { query = e.target.value.trim(); render(); };
