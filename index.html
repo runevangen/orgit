@@ -144,7 +144,7 @@ body.dragging #board{scroll-snap-type:none}
 .ghead h2{margin:0;font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gtabs{padding:8px 12px}
 .gtabsel{display:flex;gap:8px}
-.gtabsel .btn{flex:1;padding-left:6px;padding-right:6px;font-size:14px}
+.gtabsel .btn{flex:1;padding-left:4px;padding-right:4px;font-size:13px}
 .gbody{flex:1;overflow-y:auto;padding:0 12px 28px}
 .gsum{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}
 .gsum .chip{padding:3px 8px;font-size:12px;color:#fff;font-weight:600}
@@ -329,6 +329,26 @@ body.noscroll{overflow:hidden}
 .invbox .frist{margin-top:8px;color:var(--muted);font-size:13px}
 .gtb{display:inline-block;border:1px dashed var(--line);background:transparent;border-radius:6px;padding:1px 8px;font-size:12px;color:var(--muted);margin-top:4px;cursor:pointer}
 .gtb.set{background:var(--col);border-style:solid;color:var(--text)}
+.gline{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin:2px 0 10px;font-size:13px}
+.glb{background:none;border:0;padding:4px 0;font:inherit;font-size:13px;color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.glb i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.glb.act{font-weight:800;text-decoration:underline}
+.glb.more{color:var(--accent);margin-left:auto;font-weight:600}
+.gsearch{display:flex;gap:6px;margin-bottom:8px}
+.gsearch input{flex:1 1 auto;min-width:0}
+.gsearch .btn{flex:none;padding:8px 12px}
+.gsearch .btn.fon{border-color:var(--accent);background:rgba(79,124,255,.10);box-shadow:inset 0 0 0 1px var(--accent)}
+.gover{max-width:620px;margin:0 auto;padding:4px 0 24px}
+.gover h3{margin:16px 0 6px;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ovhead{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.ovbig{font-size:56px;font-weight:900;line-height:1;color:var(--accent)}
+.ovbar{height:14px;margin-bottom:8px}
+.ovrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:6px;font:inherit;color:var(--text);cursor:pointer}
+.ovrow.act{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text)}
+.ovrow .ovl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ovrow b{margin-left:auto;font-size:16px}.ovrow small{color:var(--muted);min-width:44px;text-align:right}
+.ovrow .gd{width:14px;height:14px;border-radius:50%;flex:none}
+.ovg .gbar{flex:0 0 38%;height:10px}.ovg .ovl{flex:1 1 auto}
 .pendbox{background:#fff7e0;border:2px solid #e5b400;border-radius:14px;padding:10px 12px;margin-bottom:12px}
 .pendbox p{margin:4px 0 8px;font-size:13px;color:var(--muted)}
 .pendrow{background:var(--surface);border-radius:12px;padding:9px 10px;margin-bottom:8px}
@@ -347,8 +367,8 @@ body.noscroll{overflow:hidden}
 .gbord{display:flex;flex-direction:column}
 .gside{display:contents}
 .gbtns{order:3}.gmain{order:2}
-.gtools{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
-.gtools .btn{width:100%;margin:0;padding:8px 2px;font-size:12px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gtools{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
+.gtools .btn{width:100%;margin:0;padding:9px 6px;font-size:14px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (min-width:1000px){
   .gbody{padding:0 28px 32px}
   .ghead,.gtabs{padding-left:28px;padding-right:28px}
@@ -476,7 +496,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let pending = [];
+let pending = [], gAddOpen = false, gFilOpen = false;
 let gSort = (function () { try { return localStorage.getItem('oppg_gsort') || 'navn'; } catch (e) { return 'navn'; } })(), authMode = false, authUid = null, elements = [], gScale = (window.innerWidth >= 1000 ? 1.3 : 1), relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1137,6 +1157,23 @@ function similarGuests(p) {
     else if (at[0] === bt[0] && at[0].length > 2) sc = 30;
     if (sc && g.status === 'venter') sc += 5; return { g, sc }; }).filter(x => x.sc >= 30).sort((x, y) => y.sc - x.sc).slice(0, 3).map(x => x.g);
 }
+function oversiktHtml() {
+  const keys = ['kommer', 'kanskje', 'venter', 'kommer_ikke'], tot = guests.reduce((n, g) => n + g.antall, 0), st = k => sumBy(k), pct = n => tot ? Math.round(n * 100 / tot) : 0;
+  const invN = guests.filter(g => g.invitert_tid).length, nG = guests.length;
+  const grpRow = (id, navn, farge, list) => { const t = list.reduce((n, g) => n + g.antall, 0), by = k => list.filter(g => g.status === k).reduce((n, g) => n + g.antall, 0); return `<button type="button" class="ovrow ovg ${gGrp === id ? 'act' : ''}" data-gtag="${id}"><span class="gd" style="background:${esc(farge)}"></span><span class="ovl">${esc(navn)}</span><div class="gbar">${keys.map(k => `<i style="width:${t ? by(k) * 100 / t : 0}%;background:${GST[k].c}"></i>`).join('')}</div><b>${t}</b></button>`; };
+  const noGrp = guests.filter(g => !g.gruppe_id);
+  return `<div class="gover">
+    <div class="ovhead"><div class="ovbig">${tot}</div><div>personer<br><small>${nG} ${nG === 1 ? 'gjest' : 'gjester'} på listen</small></div></div>
+    ${tot ? `<div class="gbar ovbar">${keys.map(k => `<i style="width:${st(k) * 100 / tot}%;background:${GST[k].c}" title="${GST[k].n} ${st(k)}"></i>`).join('')}</div>` : ''}
+    <h3>Svar</h3>${keys.map(k => `<button type="button" class="ovrow ${gFilter === k ? 'act' : ''}" data-gst="${k}"><span class="gd" style="background:${GST[k].c}"></span><span class="ovl">${GST[k].n}</span><b>${st(k)}</b><small>${pct(st(k))} %</small></button>`).join('')}
+    <h3>Invitasjon</h3><div class="gbar ovbar"><i style="width:${nG ? invN * 100 / nG : 0}%;background:#067647"></i></div>
+    <button type="button" class="ovrow ${gFilter === 'inv' ? 'act' : ''}" data-gst="inv"><span class="gd" style="background:#067647"></span><span class="ovl">Invitert</span><b>${invN}</b><small>av ${nG}</small></button>
+    <button type="button" class="ovrow ${gFilter === 'ikkeinv' ? 'act' : ''}" data-gst="ikkeinv"><span class="gd" style="background:#98a2b3"></span><span class="ovl">Ikke invitert</span><b>${nG - invN}</b></button>
+    <h3>Grupper</h3>${groups.map(x => grpRow(x.id, x.navn, x.farge, guests.filter(g => g.gruppe_id === x.id))).join('')}${noGrp.length ? grpRow('none', 'Uten gruppe', '#98a2b3', noGrp) : ''}${!groups.length && !noGrp.length ? '<p class="gamehint">Ingen gjester ennå. Gå til Gjesteliste og trykk «+ Gjest».</p>' : ''}
+    <p class="gamehint" style="margin-top:6px">Trykk på en rad for å se de gjestene i gjestelisten.</p>
+    <button type="button" class="ovrow" id="gGuessCard"><span class="gd" style="background:var(--accent)"></span><span class="ovl">🎲 Gjetteleken: gjett hvem som kommer (beta)</span></button>
+  </div>`;
+}
 function pendingHtml() {
   if (!pending.length) return '';
   return `<div class="pendbox"><b>🆕 Nye via felles lenke (${pending.length})</b><p>De er ikke med i tallene før du har godkjent dem. Finnes de fra før, slå dem sammen.</p>${pending.map(p => { const sim = similarGuests(p); return `<div class="pendrow"><div class="pn"><b>${esc(p.navn)}</b><small>${p.svar_tid ? `svarte ${esc(GST[p.status].n.toLowerCase())}${p.antall > 1 ? ', ' + p.antall + ' personer' : ''}` : 'har ikke svart ennå'}</small></div>
@@ -1174,7 +1211,7 @@ function gFilBarHtml() {
 }
 function gMarkFilters(el) {
   const on = (id, v) => { const x = $(id, el); if (x) x.classList.toggle('fon', !!v); };
-  on('#gQ', gQuery); on('#gFil', gFilter); on('#gGrpF', gGrp);
+  on('#gQ', gQuery); on('#gFil', gFilter); on('#gGrpF', gGrp); on('#gFilBtn', gFilter || gGrp);
   const bar = $('#gFilBar', el); if (bar) { bar.innerHTML = gFilBarHtml(); const c = $('#gFilClr', bar); if (c) c.onclick = () => { gQuery = ''; gFilter = ''; gGrp = ''; renderGuests(); }; }
 }
 function gRelClusters(list, nm) {
@@ -1213,16 +1250,19 @@ function renderGuests() {
   const issues = relIssues(); gConf = new Set(issues.flatMap(i => [i.a.id, i.b.id]));
   const b = boards.find(x => x.id === boardId);
   const total = guests.reduce((n, g) => n + g.antall, 0);
-  const sum = `<div class="gsum">${Object.entries(GST).map(([k, v]) => `<button type="button" class="chip gchipbtn ${gFilter === k ? 'act' : ''}" data-gst="${k}" title="${gFilter === k ? 'Fjern filter' : 'Vis bare ' + v.n.toLowerCase()}" style="background:${v.c}">${v.n} ${sumBy(k)}</button>`).join('')}<button type="button" class="chip gchipbtn ${!gFilter ? 'act' : ''}" data-gst="" title="Vis alle" style="background:var(--muted);color:#fff">Totalt ${total}</button>${guests.length ? `<button type="button" class="chip gchipbtn ${gFilter === 'inv' ? 'act' : ''}" data-gst="inv" title="${gFilter === 'inv' ? 'Fjern filter' : 'Vis de som er invitert'}" style="background:#067647">Invitert ${guests.filter(g => g.invitert_tid).length}/${guests.length}</button>` : ''}</div>`;
-  const gsum = groups.length ? `<div class="gsum">${groups.map(x => `<button type="button" class="chip gchipbtn ${gGrp === x.id ? 'act' : ''}" data-gtag="${x.id}" title="${gGrp === x.id ? 'Fjern filter' : 'Vis gruppen'}" style="background:${esc(x.farge)}">${esc(x.navn)} ${guests.filter(g => g.gruppe_id === x.id).reduce((n, g) => n + g.antall, 0)}</button>`).join('')}</div>` : '';
+  const sum = `<div class="gsum gline">${['kommer', 'kanskje', 'venter', 'kommer_ikke'].map(k => `<button type="button" class="glb ${gFilter === k ? 'act' : ''}" data-gst="${k}" title="Vis bare ${GST[k].n.toLowerCase()}"><i style="background:${GST[k].c}"></i>${sumBy(k)} ${GST[k].n.toLowerCase()}</button>`).join('')}<button type="button" class="glb more" data-gtab="oversikt">Oversikt ›</button></div>`;
   let body;
   if (gTab === 'liste') {
-    body = `<div class="gliste">${pendingHtml()}${store.get('oppg_guide_g') ? '' : '<div class="ghint"><span>👋 Ny her? Ta en rask guide om gjester og bord.</span><button class="btn primary" id="gHintGo" type="button">Start guide</button><button class="btn" id="gHintNo" type="button">Ikke nå</button></div>'}${sum}${gsum}<form class="gadd" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
-      ${groups.length ? `<select id="gGrpNew" aria-label="Gruppe"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gNewGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>` : ''}</form>
-      <div class="gfil"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}<option value="inv" ${gFilter === 'inv' ? 'selected' : ''}>Invitert</option><option value="ikkeinv" ${gFilter === 'ikkeinv' ? 'selected' : ''}>Ikke invitert</option></select>
+    body = `<div class="gliste">${pendingHtml()}${store.get('oppg_guide_g') ? '' : '<div class="ghint"><span>👋 Ny her? Ta en rask guide om gjester og bord.</span><button class="btn primary" id="gHintGo" type="button">Start guide</button><button class="btn" id="gHintNo" type="button">Ikke nå</button></div>'}${sum}
+      <div class="gsearch"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><button type="button" class="btn" id="gFilBtn">Filter ▾</button><button type="button" class="btn primary" id="gAddBtn">+ Gjest</button></div>
+      <form class="gadd ${gAddOpen ? '' : 'hidden'}" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
+        ${groups.length ? `<select id="gGrpNew" aria-label="Gruppe"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gNewGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>` : ''}</form>
+      <div class="gfil ${gFilOpen ? '' : 'hidden'}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}<option value="inv" ${gFilter === 'inv' ? 'selected' : ''}>Invitert</option><option value="ikkeinv" ${gFilter === 'ikkeinv' ? 'selected' : ''}>Ikke invitert</option></select>
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>
         <select id="gSort" aria-label="Sorter">${[['navn', '↕ Navn'], ['svar', '↕ Svar'], ['bord', '↕ Bord'], ['gruppe', '↕ Gruppe'], ['nyeste', '↕ Nyeste'], ['rel', '↕ Relasjoner']].map(([k, v]) => `<option value="${k}" ${gSort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
       <div id="gFilBar">${gFilBarHtml()}</div><div id="gList">${gListHtml()}</div></div>`;
+  } else if (gTab === 'oversikt') {
+    body = oversiktHtml();
   } else if (gTab === 'kart') {
     body = kartHtml();
   } else {
@@ -1238,19 +1278,18 @@ function renderGuests() {
       <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
   }
-  el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gGuess" title="Gjetteleken (beta): gjett hvem som kommer" aria-label="Gjetteleken">🎲</button><button class="btn" id="gHelp" title="Guide" aria-label="Guide">❓</button><button class="btn" id="gCsv" title="Last ned gjesteliste som CSV">CSV</button></div>
-    <div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bordplassering</button><button class="btn ${gTab === 'kart' ? 'on' : ''}" data-gtab="kart">Relasjoner</button></div><div class="gtools"><button class="btn" id="gManage" type="button">👥 Grupper</button>
-      <button class="btn" id="gInv" type="button">📅 Invitasjon</button>
-      <button class="btn" id="gLinks" type="button">✉ Svarlenker</button>
-      <button class="btn" id="gFood" type="button">🍽 Matvalg</button></div></div><div class="gbody">${body}</div>`;
+  el.innerHTML = `<div class="ghead"><button class="btn" id="gBack">← Tavle</button><h2>Gjester · ${esc(b ? b.navn : '')}</h2><button class="btn" id="gHelp" title="Guide" aria-label="Guide">❓</button></div>
+    <div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'oversikt' ? 'on' : ''}" data-gtab="oversikt">Oversikt</button><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bord</button><button class="btn ${gTab === 'kart' ? 'on' : ''}" data-gtab="kart">Relasjoner</button></div><div class="gtools"><button class="btn" id="gInviteBtn" type="button">✉ Inviter ▾</button><button class="btn" id="gMoreBtn" type="button">⋯ Mer ▾</button></div></div><div class="gbody">${body}</div>`;
   $('#gBack', el).onclick = closeGuests;
-  $('#gCsv', el).onclick = exportGuests;
-  $('#gHelp', el).onclick = guideMenu; $('#gGuess', el).onclick = openGuess;
-  $('#gManage', el).onclick = manageGroups; $('#gLinks', el).onclick = showRsvpLinks; $('#gFood', el).onclick = showFood; $('#gInv', el).onclick = editInvite;
+  $('#gHelp', el).onclick = guideMenu;
+  $('#gInviteBtn', el).onclick = () => sheet('Inviter', [{ label: '📅 Invitasjon: dato, sted og tekst', fn: editInvite }, { label: '✉ Svarlenker til gjestene', fn: showRsvpLinks }, { label: '🍽 Matvalg og allergier', fn: showFood }]);
+  $('#gMoreBtn', el).onclick = () => sheet('Mer', [{ label: '👥 Grupper: lag og rediger', fn: manageGroups }, { label: '🎲 Gjetteleken (beta)', fn: openGuess }, { label: '🖨 Navnekort og bordkort', fn: cardsExport }, { label: '🖼 Bilde av bordplanen', fn: planExport }, { label: '⬇ Last ned gjestelisten (CSV)', fn: exportGuests }]);
   el.querySelectorAll('[data-gst]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); const v = x.dataset.gst; gFilter = (!v || (gFilter === v && gTab === 'liste')) ? '' : v; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtag]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); if (dragging || Date.now() - lastDrop < 400) return; const id = x.dataset.gtag; gGrp = (gGrp === id && gTab === 'liste') ? '' : id; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
   if (gTab === 'liste') {
+    $('#gAddBtn', el).onclick = () => { gAddOpen = !gAddOpen; $('#gAddForm', el).classList.toggle('hidden', !gAddOpen); if (gAddOpen) $('#gNavn', el).focus(); };
+    $('#gFilBtn', el).onclick = () => { gFilOpen = !gFilOpen; $('.gfil', el).classList.toggle('hidden', !gFilOpen); };
     $('#gAddForm', el).onsubmit = async e => { e.preventDefault(); gNewGrp = ($('#gGrpNew', el) || {}).value || ''; await addGuest($('#gNavn', el).value, +$('#gAntall', el).value || 1, gNewGrp); setTimeout(() => $('#gNavn')?.focus(), 0); };
     $('#gQ', el).oninput = e => { gQuery = e.target.value.trim(); $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
     $('#gGrpF', el).onchange = e => { gGrp = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
@@ -1258,6 +1297,8 @@ function renderGuests() {
     $('#gSort', el).onchange = e => { gSort = e.target.value; try { localStorage.setItem('oppg_gsort', gSort); } catch (x) {} $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
     $('#gFil', el).onchange = e => { gFilter = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
     bindGuestRows($('#gList', el)); gMarkFilters(el); bindPending(el);
+  } else if (gTab === 'oversikt') {
+    const gc = $('#gGuessCard', el); if (gc) gc.onclick = openGuess;
   } else if (gTab === 'kart') {
     bindKart(el);
   } else {
@@ -1674,25 +1715,25 @@ const TOUR_BOARD = [
 const toGuests = () => { openGuests(); gTab = 'liste'; renderGuests(); };
 const toTables = v => () => { openGuests(); gTab = 'bord'; gView = v || 'plan'; renderGuests(); };
 const TOUR_GUESTS = [
-  { sel: '.gtabs', title: 'To faner', text: 'Gjesteliste er for navn og svar. Bordplassering er for å sette gjestene ved bord.', before: toGuests },
-  { sel: '.gsum', title: 'Oversikt', text: 'Antall personer som kommer, venter, kanskje og ikke kommer, samt antall per gruppe.' },
-  { sel: '#gAddForm', title: 'Legg til gjester', text: 'Skriv navn (en person eller en gruppe), antall personer og eventuelt gruppe. Trykk Legg til.' },
-  { sel: '#gManage', title: 'Grupper', text: 'Lag grupper som Familie, Bodø og Trondheim-gjengen med egen farge. Brukes til filter og når du plasserer folk ved bord.' },
-  { sel: '#gInv', title: 'Invitasjon', text: 'Skriv dato, sted, svarfrist og en hilsen som gjestene ser.' },
-  { sel: '#gLinks', title: 'Svarlenker', text: 'Hver gjest får en egen lenke og kan svare selv. Svaret dukker opp her med en gang.' },
+  { sel: '.gtabs', title: 'Fanene', text: 'Oversikt viser status. Gjesteliste er for navn og svar. Bord er for å sette gjestene ved bord, og Relasjoner viser hvem som henger sammen.', before: toGuests },
+  { sel: '.gsum', title: 'Status', text: 'Antall personer som kommer, kanskje, venter og ikke kommer. Trykk på et tall for å vise bare de gjestene, eller på Oversikt for mer.' },
+  { sel: '#gAddBtn', title: 'Legg til gjester', text: 'Trykk + Gjest, skriv navn (en person eller en gruppe), antall personer og eventuelt gruppe, og trykk Legg til.' },
+  { sel: '#gMoreBtn', title: 'Grupper og mer', text: 'Under Mer finner du Grupper, Gjetteleken, utskrift av navnekort og eksport. Lag grupper som Familie, Bodø og Trondheim-gjengen med egen farge. De brukes til filter og når du plasserer folk ved bord.' },
+  { sel: '#gInviteBtn', title: 'Invitasjon', text: 'Under Inviter skriver du dato, sted, svarfrist og en hilsen som gjestene ser.' },
+  { sel: '#gInviteBtn', title: 'Svarlenker', text: 'Også under Inviter: hver gjest får en egen lenke og kan svare selv. Svaret dukker opp i listen med en gang.' },
   { sel: '.gbtn.yes', title: 'Kryss av', text: '✔ betyr kommer, ✖ betyr kommer ikke. Trykk igjen for å angre. «Kanskje» velger du inni gjesten.', missing: 'Når du har lagt til gjester, vises ✔ og ✖ på hver gjest. Trykk for å krysse av om de kommer.' },
   { sel: '.gtb', title: 'Velg bord', text: 'Sett gjesten ved et bord direkte herfra.', missing: 'Hver gjest får en knapp «Velg bord» der du kan sette dem ved et bord.' },
   { sel: '.gname', title: 'Alt om gjesten', text: 'Trykk på navnet for bilde, antall, gruppe, relasjoner (skal eller bør ikke sitte sammen) og notater.', missing: 'Trykk på en gjest for bilde, antall, gruppe, relasjoner og notater.' },
-  { sel: '.gfil', title: 'Søk og filter', text: 'Søk på navn, filtrer på svar og gruppe, og velg hvordan listen sorteres.' }
+  { sel: '.gsearch', title: 'Søk og filter', text: 'Søk på navn, filtrer på svar og gruppe, og velg hvordan listen sorteres.' }
 ];
 const TOUR_INVITE = [
-  { sel: '#gInv', title: '1. Fyll ut invitasjonen', text: 'Trykk her og skriv tittel, dato, klokkeslett, sted, svarfrist og en hilsen. Dette ser gjestene øverst på svarsiden og i meldingen du sender.', before: toGuests },
-  { sel: '#gLinks', title: '2. Hent svarlenkene', text: 'Trykk her. Du får en personlig lenke til hver gjest. Lenkene kan ikke gjettes, så send hver gjest bare sin egen.' },
+  { sel: '#gInviteBtn', title: '1. Fyll ut invitasjonen', text: 'Trykk Inviter og velg Invitasjon. Skriv tittel, dato, klokkeslett, sted, svarfrist og en hilsen. Dette ser gjestene øverst på svarsiden og i meldingen du sender.', before: toGuests },
+  { sel: '#gInviteBtn', title: '2. Hent svarlenkene', text: 'Trykk Inviter og velg Svarlenker. Du får en personlig lenke til hver gjest. Lenkene kan ikke gjettes, så send hver gjest bare sin egen.' },
   { title: '3. Del lenken', text: 'Trykk Del for å sende en ferdig melding på SMS, Messenger eller e-post, med dato, sted og lenke. Kopier alle gir en liste med navn og lenker du kan lime inn.' },
   { title: '4. Dette ser gjesten', text: 'Gjesten åpner lenken uten å logge inn, ser invitasjonen og velger Jeg kommer, Kanskje eller Kommer ikke. De kan velge antall personer og skrive en melding, for eksempel om allergier. Etterpå kan de legge arrangementet i kalenderen.' },
   { sel: '.gsum', title: '5. Svarene kommer inn', text: 'Når en gjest svarer, oppdateres tallene her og gjesten får riktig status automatisk. Gjester som sier at de ikke kommer, tas av bordet.' },
   { sel: '[title="Svarte selv"]', title: 'Svarte selv', text: 'Gjester som har svart via lenken har et ✉ ved navnet. Trykk på navnet for å lese meldingen deres.', missing: 'Gjester som har svart via lenken får et ✉ ved navnet. Trykk på navnet for å lese meldingen deres.' },
-  { sel: '[data-gtab=bord]', title: 'Så: bordplassering', text: 'Når svarene er inne, setter du de som kommer ved bord under Bordplassering.' }
+  { sel: '[data-gtab=bord]', title: 'Så: bordplassering', text: 'Når svarene er inne, setter du de som kommer ved bord under Bord.' }
 ];
 const TOUR_TABLES = [
   { sel: '.gunp', title: 'Ikke plassert', text: 'Gjester som ennå ikke har bord. Dra en gjest herfra til et bord, eller trykk på en ledig plass.', before: toTables('plan') },
