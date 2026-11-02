@@ -185,7 +185,7 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .gth .cnt.over{color:var(--danger);font-weight:700}
 .gth button{border:0;background:transparent;font-size:18px;color:var(--muted);padding:2px 8px}
 .gseats{min-height:48px;display:flex;flex-direction:column;gap:6px}
-@media (max-width:999px){.gunp .gseats{max-height:28vh;overflow:auto}}
+@media (max-width:999px){.gunp .gseats{max-height:34vh;overflow:auto}}
 .gchip{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:8px;padding:6px 10px 6px 6px;border-left:5px solid var(--sc,var(--line));cursor:pointer;word-break:break-word;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .gav{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none;border:3px solid var(--sc,var(--line));display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;background:var(--muted)}
 .gav.sm{width:30px;height:30px;border-width:2px;font-size:12px}
@@ -353,6 +353,11 @@ body.noscroll{overflow:hidden}
 .dropmenu button{display:block;width:100%;text-align:left;background:none;border:0;padding:12px;border-radius:10px;font:inherit;font-size:15px;color:var(--text);cursor:pointer}
 .dropmenu button:hover,.dropmenu button:focus-visible{background:var(--col);outline:0}
 .gtools .btn.open{background:var(--col);border-color:var(--text)}
+.gunpf{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+.gunpf input{flex:1 1 100%;min-width:0}
+.gunpf select{flex:1 1 0;min-width:0;width:auto;font-size:14px}
+.gunpf .btn{flex:none;padding:7px 10px;font-size:13px}
+.gunpf .fon{border-color:var(--accent);background:rgba(79,124,255,.10);box-shadow:inset 0 0 0 1px var(--accent)}
 .pendbox{background:#fff7e0;border:2px solid #e5b400;border-radius:14px;padding:10px 12px;margin-bottom:12px}
 .pendbox p{margin:4px 0 8px;font-size:13px;color:var(--muted)}
 .pendrow{background:var(--surface);border-radius:12px;padding:9px 10px;margin-bottom:8px}
@@ -500,7 +505,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let pending = [], gAddOpen = false, gFilOpen = false;
+let pending = [], gAddOpen = false, gFilOpen = false, gUq = '', gUg = '', gUs = '';
 let gSort = (function () { try { return localStorage.getItem('oppg_gsort') || 'navn'; } catch (e) { return 'navn'; } })(), authMode = false, authUid = null, elements = [], gScale = (window.innerWidth >= 1000 ? 1.3 : 1), relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1289,10 +1294,14 @@ function renderGuests() {
     const hintOf = {};
     issues.forEach(i => [[i.a, i.b], [i.b, i.a]].forEach(([x, y]) => { if (!x.bord_id && i.t === 'sammen') (hintOf[x.id] = hintOf[x.id] || []).push(`${y.navn}${y.bord_id ? ' (' + tName(y.bord_id) + ')' : ''}`); }));
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => (gConf.has(b.id) ? 1 : 0) - (gConf.has(a.id) ? 1 : 0) || gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
+    const unpAll = unp, unpNorm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const unpF = unp.filter(g => (!gUs || g.status === gUs) && (!gUg || (gUg === 'none' ? !g.gruppe_id : g.gruppe_id === gUg)) && (!gUq || unpNorm(g.navn).includes(unpNorm(gUq)) || g.navn.toLowerCase().includes(gUq.toLowerCase())));
     const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}${hintOf[g.id] ? `<small class="chint">💞 skal sitte med ${esc(hintOf[g.id].join(', '))}</small>` : ''}</div></div>`;
     const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Bord</button><button class="btn ${gView === 'floor' ? 'on' : ''}" data-gview="floor">Lokale</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
     const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
-    body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unp.reduce((n, g) => n + g.antall, 0)} pers.</span></div><div class="gseats" data-bord="">${unp.map(chip).join('')}</div></div><div class="gbtns"><div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
+    body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unpF.length < unpAll.length ? `Viser ${unpF.length} av ${unpAll.length}` : unpAll.reduce((n, g) => n + g.antall, 0) + ' pers.'}</span></div>
+      <div class="gunpf"><input id="gUq" type="search" placeholder="Søk blant de uplasserte …" value="${esc(gUq)}" class="${gUq ? 'fon' : ''}" autocomplete="off"><select id="gUg" aria-label="Gruppe" class="${gUg ? 'fon' : ''}"><option value="">Alle grupper</option><option value="none" ${gUg === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gUg === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select><select id="gUs" aria-label="Svar" class="${gUs ? 'fon' : ''}"><option value="">Alle svar</option>${['kommer', 'kanskje', 'venter'].map(k => `<option value="${k}" ${gUs === k ? 'selected' : ''}>${GST[k].n}</option>`).join('')}</select>${gUq || gUg || gUs ? '<button type="button" class="btn" id="gUclr">Fjern filter</button>' : ''}</div>
+      <div class="gseats" data-bord="">${unpF.map(chip).join('') || `<p class="gempty" style="margin:8px 4px">${unpAll.length ? 'Ingen treff blant de uplasserte.' : 'Alle er plassert 🎉'}</p>`}</div></div><div class="gbtns"><div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
       <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Bilde av bordplanen</button>
       <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
@@ -1321,6 +1330,11 @@ function renderGuests() {
   } else if (gTab === 'kart') {
     bindKart(el);
   } else {
+    { const q = $('#gUq', el); if (q) {
+      q.oninput = e => { gUq = e.target.value.trim(); const pos = e.target.selectionStart; renderGuests(); const n = $('#gUq'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {} } };
+      $('#gUg', el).onchange = e => { gUg = e.target.value; renderGuests(); }; $('#gUs', el).onchange = e => { gUs = e.target.value; renderGuests(); };
+      const c = $('#gUclr', el); if (c) c.onclick = () => { gUq = ''; gUg = ''; gUs = ''; renderGuests(); };
+    } }
     $('#gNewTable', el).onclick = addTable;
     $('#gTypes', el).onclick = manageTypes;
     $('#gImg', el).onclick = planExport;
