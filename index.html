@@ -2548,7 +2548,7 @@ $('#board').addEventListener('scroll', updateDots, { passive: true });
 $('#dots').onclick = e => { const d = e.target.closest('[data-dot]'); if (!d) return; const col = $$('.col', $('#board'))[+d.dataset.dot]; if (col) $('#board').scrollTo({ left: col.offsetLeft - parseFloat(getComputedStyle($('#board')).paddingLeft), behavior: 'smooth' }); };
 $('#boardBtn').onclick = boardMenu;
 $('#meBtn').onclick = meMenu;
-$('#guestBtn').onclick = openGuests;
+$('#guestBtn').onclick = () => { gTab = 'oversikt'; openGuests(); };
 $('#logoutBtn').onclick = () => { if (confirm('Logge ut?')) logout(); };
 $('#searchBtn').onclick = () => { const bar = $('#searchBar'); bar.classList.toggle('hidden'); if (!bar.classList.contains('hidden')) $('#searchIn').focus(); else { resetFilters(); render(); } };
 $('#searchIn').oninput = e => { query = e.target.value.trim(); render(); };
