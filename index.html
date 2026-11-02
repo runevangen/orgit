@@ -357,7 +357,14 @@ body.noscroll{overflow:hidden}
 .ovrow .gd{width:14px;height:14px;border-radius:50%;flex:none}
 .ovg .gbar{flex:0 0 38%;height:10px}.ovg .ovl{flex:1 1 auto}
 .dropmenu{position:fixed;z-index:280;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 30px rgba(16,24,40,.22);padding:6px}
-.dropmenu button{display:block;width:100%;text-align:left;background:none;border:0;padding:12px;border-radius:10px;font:inherit;font-size:15px;color:var(--text);cursor:pointer}
+.dropmenu{overflow:auto;-webkit-overflow-scrolling:touch}
+.dmh{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 12px 4px}
+.dmh:first-child{padding-top:4px}
+.dms{font-size:12px;color:var(--muted);font-weight:500}
+.dms.warn{color:#b42318;font-weight:700}
+.ghead .btn[data-dot]{position:relative}
+.ghead .btn[data-dot]::after{content:'';position:absolute;top:5px;right:5px;width:10px;height:10px;border-radius:50%;background:#e5484d;border:2px solid var(--surface)}
+.dropmenu button{display:flex;flex-direction:column;gap:1px;width:100%;text-align:left;background:none;border:0;padding:12px;border-radius:10px;font:inherit;font-size:15px;color:var(--text);cursor:pointer}
 .dropmenu button:hover,.dropmenu button:focus-visible{background:var(--col);outline:0}
 .gtools .btn.open{background:var(--col);border-color:var(--text)}
 .gunpf{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
@@ -375,6 +382,8 @@ body.noscroll{overflow:hidden}
 #logoutBtn{display:none!important}
 header,.ghead{box-sizing:border-box;flex:none;height:calc(56px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);padding-bottom:0}
 .ghead .btn.icon{min-width:44px}
+.ghead #gSearchBtn{margin-left:auto}
+@media (max-width:520px){.ghead h2{display:none}}
 .chipsbar{display:none;flex:none;gap:8px;overflow-x:auto;align-items:center;box-sizing:border-box;height:48px;padding:0 12px;background:var(--surface);border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .chipsbar::-webkit-scrollbar{display:none}
 html[data-ts=C] .chipsbar{display:flex}
@@ -594,12 +603,12 @@ function showModal(html, onClose) {
 }
 function dropMenu(btn, items) {
   const old = document.querySelector('.dropmenu');
-  if (old) { const same = old.dataset.for === btn.id; old.remove(); document.querySelectorAll('.gtools .btn.open').forEach(x => x.classList.remove('open')); if (same) return; }
+  if (old) { const same = old.dataset.for === btn.id; old.remove(); document.querySelectorAll('.btn.open').forEach(x => x.classList.remove('open')); if (same) return; }
   const m = document.createElement('div'); m.className = 'dropmenu'; m.dataset.for = btn.id; m.setAttribute('role', 'menu');
-  m.innerHTML = items.map((o, i) => `<button type="button" role="menuitem" data-i="${i}">${esc(o.label)}</button>`).join('');
+  m.innerHTML = items.map((o, i) => o.head ? `<div class="dmh">${esc(o.head)}</div>` : `<button type="button" role="menuitem" data-i="${i}"><span class="dml">${esc(o.label)}</span>${o.sub ? `<small class="dms ${o.warn ? 'warn' : ''}">${esc(o.sub)}</small>` : ''}</button>`).join('');
   document.body.appendChild(m); btn.classList.add('open');
-  const r = btn.getBoundingClientRect(), mw = Math.min(Math.max(r.width, 260), window.innerWidth - 16);
-  m.style.width = mw + 'px'; m.style.top = (r.bottom + 4) + 'px';
+  const r = btn.getBoundingClientRect(), mw = Math.min(Math.max(r.width, 290), window.innerWidth - 16);
+  m.style.width = mw + 'px'; m.style.top = (r.bottom + 4) + 'px'; m.style.maxHeight = Math.max(200, window.innerHeight - r.bottom - 84) + 'px';
   m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - mw - 8)) + 'px';
   const close = () => { m.remove(); btn.classList.remove('open'); document.removeEventListener('pointerdown', off, true); document.removeEventListener('keydown', esc2, true); window.removeEventListener('resize', close); };
   const off = e => { if (!m.contains(e.target) && !btn.contains(e.target)) close(); };
@@ -1338,6 +1347,48 @@ function bindGuestRows(root) {
   root.querySelectorAll('[data-gtb]').forEach(b => b.onclick = e => { e.stopPropagation(); pickTable(b.dataset.gtb); });
   root.querySelectorAll('[data-gedit]').forEach(b => b.onclick = () => editGuest(b.dataset.gedit));
 }
+function menuInfo() {
+  const b = boards.find(x => x.id === boardId) || {};
+  const arrOk = !!(b.arr_dato || b.arr_sted || b.arr_navn);
+  return { b, arrOk, venter: guests.filter(g => g.status === 'venter').length, kanskje: guests.filter(g => g.status === 'kanskje').length, allergi: guests.filter(g => g.allergier && g.status !== 'kommer_ikke').length, nye: pending.length, dot: !arrOk || pending.length > 0 };
+}
+async function copyFellesLenke() {
+  const b = boards.find(x => x.id === boardId); if (!b) return;
+  if (!b.felles_token) {
+    const arr = new Uint8Array(24); crypto.getRandomValues(arr); const tk = [...arr].map(v => v.toString(16).padStart(2, '0')).join('');
+    const { error } = await sb.from('oppg_tavler').update({ felles_token: tk }).eq('id', boardId); if (fail(error, 'kunne ikke lage lenken')) return; b.felles_token = tk;
+  }
+  const fu = location.origin + location.pathname + '?felles=' + b.felles_token, when = b.arr_dato ? ` ${fmtDato(b.arr_dato)}${b.arr_tid ? ' kl. ' + b.arr_tid : ''}` : '';
+  const text = `Hei! Du er invitert til ${b.arr_navn || b.navn}${when}${b.arr_sted ? ' (' + b.arr_sted + ')' : ''}. Svar her: ${fu}`;
+  toast(await copyText(text) ? 'Felles lenke kopiert. Lim den inn i gruppechatten.' : 'Kunne ikke kopiere', 4000);
+}
+function inviteMenuItems(head) {
+  const i = menuInfo();
+  return [
+    ...(head ? [{ head: 'Inviter' }] : []),
+    { label: '📅 Invitasjon: tekst og dato', sub: i.arrOk ? (i.b.arr_dato ? fmtDato(i.b.arr_dato) : 'fylt ut') : '⚠ ikke fylt ut ennå', warn: !i.arrOk, fn: editInvite },
+    { label: '🔗 Kopier felles lenke', sub: i.b.felles_token ? 'til gruppechat' : 'lag og kopier', fn: copyFellesLenke },
+    { label: '✉ Personlige svarlenker', sub: `${i.venter} har ikke svart`, fn: () => showRsvpLinks() },
+    { label: '🔔 Send påminnelse', sub: i.venter + i.kanskje ? `${i.venter} venter · ${i.kanskje} kanskje` : 'alle har svart', fn: () => showRsvpLinks('miss') },
+    ...(i.nye ? [{ label: '🆕 Nye navn som venter', sub: `${i.nye} venter på deg`, warn: true, fn: () => { gTab = 'liste'; renderGuests(); setTimeout(() => { const x = document.querySelector('.pendbox'); if (x) x.scrollIntoView({ block: 'start' }); }, 0); } }] : [])
+  ];
+}
+function moreMenuItems() {
+  const i = menuInfo();
+  return [
+    { head: 'Planlegg' },
+    ...(gTab === 'bord' ? [{ label: '＋ Nytt bord', fn: addTable }, { label: '🪑 Bordtyper', sub: `${tableTypes.length} ${tableTypes.length === 1 ? 'type' : 'typer'}`, fn: manageTypes }] : []),
+    { label: '👥 Grupper', sub: `${groups.length} ${groups.length === 1 ? 'gruppe' : 'grupper'}`, fn: manageGroups },
+    { label: '🍽 Matvalg og allergier', sub: i.allergi ? `${i.allergi} med allergi` : 'ingen allergier oppgitt', fn: showFood },
+    { head: 'Skriv ut' },
+    { label: '🖨 Navnekort og bordkort', fn: cardsExport },
+    { label: '🖼 Bilde av bordplanen', fn: planExport },
+    { head: 'Annet' },
+    { label: '⬇ Last ned gjestelisten (CSV)', fn: exportGuests },
+    { label: '🎲 Gjetteleken (beta)', fn: openGuess },
+    { label: '❓ Guide og hjelp', fn: guideMenu }
+  ];
+}
 function renderGuests() {
   const el = $('#guests'); if (!guestsOpen) return;
   if (gTab !== 'kart' && kart.full) { kart.full = false; kart.view = null; document.body.classList.remove('noscroll'); }
@@ -1372,22 +1423,20 @@ function renderGuests() {
     const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
     body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unpF.length < unpAll.length ? `Viser ${unpF.length} av ${unpAll.length}` : unpAll.reduce((n, g) => n + g.antall, 0) + ' pers.'}</span></div>
       <div class="gunpf"><input id="gUq" type="search" placeholder="Søk blant de uplasserte …" value="${esc(gUq)}" class="${gUq ? 'fon' : ''}" autocomplete="off"><select id="gUg" aria-label="Gruppe" class="${gUg ? 'fon' : ''}"><option value="">Alle grupper</option><option value="none" ${gUg === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gUg === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select><select id="gUs" aria-label="Svar" class="${gUs ? 'fon' : ''}"><option value="">Alle svar</option>${['kommer', 'kanskje', 'venter'].map(k => `<option value="${k}" ${gUs === k ? 'selected' : ''}>${GST[k].n}</option>`).join('')}</select>${gUq || gUg || gUs ? '<button type="button" class="btn" id="gUclr">Fjern filter</button>' : ''}</div>
-      <div class="gseats" data-bord="">${unpF.map(chip).join('') || `<p class="gempty" style="margin:8px 4px">${unpAll.length ? 'Ingen treff blant de uplasserte.' : 'Alle er plassert 🎉'}</p>`}</div></div><div class="gbtns"><div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button><button class="btn" id="gTypes">Bordtyper (${tableTypes.length})</button></div>
+      <div class="gseats" data-bord="">${unpF.map(chip).join('') || `<p class="gempty" style="margin:8px 4px">${unpAll.length ? 'Ingen treff blant de uplasserte.' : 'Alle er plassert 🎉'}</p>`}</div></div><div class="gbtns">${tables.length ? '' : '<div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button></div>'}
       <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Bilde av bordplanen</button>
       <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
   }
   const ts = topStyle, tabsHtml = `<div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'oversikt' ? 'on' : ''}" data-gtab="oversikt">Oversikt</button><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bord</button><button class="btn ${gTab === 'kart' ? 'on' : ''}" data-gtab="kart">Relasjoner</button></div></div>`;
   const chipsG = ts === 'C' ? `<div class="chipsbar gchips">${['kommer', 'kanskje', 'venter', 'kommer_ikke'].map(k => `<button type="button" class="chip2 ${gFilter === k ? 'on' : ''}" data-gst="${k}"><i style="background:${GST[k].c}"></i>${GST[k].n} ${sumBy(k)}</button>`).join('')}<button type="button" class="chip2 ${gFilter === 'ikkeinv' ? 'on' : ''}" data-gst="ikkeinv">✉ Ikke invitert ${guests.filter(g => !g.invitert_tid).length}</button></div>` : '';
-  el.innerHTML = `<div class="ghead"><h2>Gjester</h2><button class="btn icon" id="gSearchBtn" title="Søk i gjestelisten" aria-label="Søk">🔍</button><button class="btn primary icon" id="gPlusBtn" title="Ny gjest" aria-label="Ny gjest">＋</button>${ts === 'A' ? '<button class="btn" id="gInviteBtn" type="button" aria-label="Inviter">✉ ▾</button>' : ''}<button class="btn" id="gMoreBtn" type="button" aria-label="Mer">⋯ ▾</button><button class="btn icon" id="gMeBtn" title="Meg">${avatar(me, 30)}</button></div>
+  el.innerHTML = `<div class="ghead"><h2>Gjester</h2><button class="btn icon" id="gSearchBtn" title="Søk i gjestelisten" aria-label="Søk">🔍</button><button class="btn primary icon" id="gPlusBtn" title="Ny gjest" aria-label="Ny gjest">＋</button>${ts === 'A' ? `<button class="btn" id="gInviteBtn" type="button" aria-label="Inviter" ${menuInfo().dot ? 'data-dot="1"' : ''}>✉ Inviter ▾</button>` : ''}<button class="btn" id="gMoreBtn" type="button" aria-label="Mer" ${ts !== 'A' && menuInfo().dot ? 'data-dot="1"' : ''}>⋯ ▾</button><button class="btn icon" id="gMeBtn" title="Meg">${avatar(me, 30)}</button></div>
     ${ts === 'A' ? tabsHtml : ''}${chipsG}<div class="gbody">${body}</div>`;
   $('#gMeBtn', el).onclick = meMenu;
   $('#gSearchBtn', el).onclick = () => { gTab = 'liste'; renderGuests(); setTimeout(() => { const q = $('#gQ'); if (q) q.focus(); }, 0); };
   $('#gPlusBtn', el).onclick = () => { gTab = 'liste'; gAddOpen = true; renderGuests(); setTimeout(() => { const q = $('#gNavn'); if (q) q.focus(); }, 0); };
-  const inviteItems = [{ label: '📅 Invitasjon: dato, sted og tekst', fn: editInvite }, { label: '✉ Svarlenker til gjestene', fn: showRsvpLinks }, { label: '🍽 Matvalg og allergier', fn: showFood }];
-  const moreItems = [{ label: '👥 Grupper: lag og rediger', fn: manageGroups }, { label: '🎲 Gjetteleken (beta)', fn: openGuess }, { label: '🖨 Navnekort og bordkort', fn: cardsExport }, { label: '🖼 Bilde av bordplanen', fn: planExport }, { label: '⬇ Last ned gjestelisten (CSV)', fn: exportGuests }, { label: '❓ Guide og hjelp', fn: guideMenu }];
-  if ($('#gInviteBtn', el)) { $('#gInviteBtn', el).onclick = e => dropMenu(e.currentTarget, inviteItems); $('#gMoreBtn', el).onclick = e => dropMenu(e.currentTarget, moreItems); }
-  else $('#gMoreBtn', el).onclick = e => dropMenu(e.currentTarget, [...inviteItems, ...moreItems]);
+  if ($('#gInviteBtn', el)) { $('#gInviteBtn', el).onclick = e => dropMenu(e.currentTarget, inviteMenuItems(false)); $('#gMoreBtn', el).onclick = e => dropMenu(e.currentTarget, moreMenuItems()); }
+  else $('#gMoreBtn', el).onclick = e => dropMenu(e.currentTarget, [...inviteMenuItems(true), ...moreMenuItems()]);
   el.querySelectorAll('[data-gst]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); const v = x.dataset.gst; gFilter = (!v || (gFilter === v && gTab === 'liste')) ? '' : v; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtag]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); if (dragging || Date.now() - lastDrop < 400) return; const id = x.dataset.gtag; gGrp = (gGrp === id && gTab === 'liste') ? '' : id; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
@@ -1411,8 +1460,7 @@ function renderGuests() {
       $('#gUg', el).onchange = e => { gUg = e.target.value; renderGuests(); }; $('#gUs', el).onchange = e => { gUs = e.target.value; renderGuests(); };
       const c = $('#gUclr', el); if (c) c.onclick = () => { gUq = ''; gUg = ''; gUs = ''; renderGuests(); };
     } }
-    $('#gNewTable', el).onclick = addTable;
-    $('#gTypes', el).onclick = manageTypes;
+    if ($('#gNewTable', el)) $('#gNewTable', el).onclick = addTable;
     $('#gImg', el).onclick = planExport;
     $('#gCards', el).onclick = cardsExport;
     el.querySelectorAll('[data-tmenu]').forEach(x => x.onclick = () => tableMenu(x.dataset.tmenu));
@@ -1884,8 +1932,8 @@ const TOUR_INVITE = [
 ];
 const TOUR_TABLES = [
   { sel: '.gunp', title: 'Ikke plassert', text: 'Gjester som ennå ikke har bord. Dra en gjest herfra til et bord, eller trykk på en ledig plass.', before: toTables('plan') },
-  { sel: '#gNewTable', title: 'Nytt bord', text: 'Velg bordtype og hvor mange bord du vil legge til.' },
-  { sel: '#gTypes', title: 'Bordtyper', text: 'Lag typer som 4-, 6- og 8-personsbord. Endrer du en type, oppdateres alle bord av den typen.' },
+  { sel: '#gMoreBtn', title: 'Nytt bord', text: 'Åpne Mer-menyen og velg + Nytt bord. Velg bordtype og hvor mange bord du vil legge til.' },
+  { sel: '#gMoreBtn', title: 'Bordtyper', text: 'Også under Mer: lag typer som 4-, 6- og 8-personsbord. Endrer du en type, oppdateres alle bord av den typen.' },
   { sel: '.gview', title: 'Tre visninger', text: 'Bord viser bord med gjestene rundt. Lokale lar deg flytte bordene fritt. Dra og slipp er en enkel liste.' },
   { sel: '[data-seat-e]', title: 'Ledig plass', text: 'Trykk på et «+» for å sette en gjest på den plassen.', missing: 'Når du har laget et bord, vises ledige plasser som «+». Trykk på en for å sette en gjest der.' },
   { sel: '.gtable', title: 'Dra til bord', text: 'Dra en gjest rett på et bord. På mobil holder du fingeren litt nede først. Bordet lyser blått, og blir rødt når det er fullt.', missing: 'Dra en gjest rett på et bord. På mobil holder du fingeren litt nede først.' },
@@ -1982,7 +2030,7 @@ function showFood() {
   };
   draw();
 }
-function showRsvpLinks() {
+function showRsvpLinks(startMode) {
   if (!guests.length) return toast('Legg til gjester først');
   const m = showModal('<h2>Svarlenker</h2>');
   const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -2034,6 +2082,7 @@ function showRsvpLinks() {
   };
   if (authMode) {
     m.innerHTML = '<h2>Svarlenker</h2><p style="color:var(--muted)">Henter lenker …</p>';
+    renderLinks.mode = startMode === 'miss' ? 'miss' : 'alle';
     sb.rpc('oppg_rsvp_lenker2', { p_tavle: boardId }).then(({ data, error }) => { if (error) { closeModal(); toast('Feil: ' + error.message, 7000); } else renderLinks(data || []); });
     return;
   }
