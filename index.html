@@ -226,12 +226,15 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 @media (max-width:600px){.col,.newcol{width:100%}#board{padding:12px 16px;gap:32px;scroll-padding:0 16px}header{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}}
 #dots{display:flex;gap:8px;padding:8px 12px 10px;min-height:12px;overflow-x:auto;flex:none;background:var(--surface);border-top:1px solid var(--line);scrollbar-width:none}
 #dots::-webkit-scrollbar{display:none}
-.mc{flex:1 0 74px;min-width:0;text-align:left;border:2px solid var(--line);background:var(--bg);color:var(--text);border-radius:10px;padding:6px 7px 7px;font:inherit;cursor:pointer}
-.mc.on{border-color:var(--accent);background:rgba(79,124,255,.10)}
+.mc{position:relative;flex:1 0 74px;min-width:0;text-align:left;border:2px solid var(--line);border-top:4px solid var(--mc,var(--line));background:var(--bg);color:var(--text);border-radius:10px;padding:5px 7px 7px;font:inherit;cursor:pointer;overflow:hidden}
+.mc::before{content:'';position:absolute;inset:0;background:var(--mc,transparent);opacity:.07;pointer-events:none}
+.mc>*{position:relative}
+.mc.on{border-color:var(--mc,var(--accent));background:var(--surface);box-shadow:0 0 0 1px var(--mc,var(--accent))}
+.mc.on::before{opacity:.16;background:var(--mc,var(--accent))}
 .mct{display:block;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px}
 .mcb{display:flex;flex-direction:column;gap:2px;min-height:33px}
-.mcb i{display:block;height:5px;border-radius:2px;background:#c9ced8}
-.mc.on .mcb i{background:#9fb3ea}
+.mcb i{display:block;height:5px;border-radius:2px;background:var(--mc,#c9ced8);opacity:.5}
+.mc.on .mcb i{opacity:.9}
 .mcn{display:block;font-size:11px;color:var(--muted);margin-top:4px}
 .mcadd{flex:0 0 38px;display:grid;place-items:center;border-style:dashed;color:var(--muted);font-size:20px;padding:0}
 #dots:empty{display:none}
@@ -939,7 +942,7 @@ function render() {
   }).join('') + `<div class="newcol"><button id="newColBtn">+ Ny kolonne</button></div>`;
   $('#board').innerHTML = html;
   $('#board').scrollTo({ left: scroll, behavior: 'instant' });
-  $('#dots').innerHTML = cols.length > 1 ? cols.map((c, i) => { const n = cards.filter(k => k.kolonne_id === c.id && !k.arkivert).length; return `<button class="mc" data-dot="${i}" aria-label="${esc(c.tittel)}, ${n} kort"><span class="mct">${esc(c.tittel)}</span><span class="mcb">${Array.from({ length: Math.min(n, 5) }, () => '<i></i>').join('')}</span><span class="mcn">${n} kort</span></button>`; }).join('') + '<button class="mc mcadd" id="mcAdd" aria-label="Ny kolonne">＋</button>' : '';
+  $('#dots').innerHTML = cols.length > 1 ? cols.map((c, i) => { const n = cards.filter(k => k.kolonne_id === c.id && !k.arkivert).length; return `<button class="mc" data-dot="${i}" style="${c.farge ? `--mc:${esc(c.farge)}` : ''}" aria-label="${esc(c.tittel)}, ${n} kort"><span class="mct">${esc(c.tittel)}</span><span class="mcb">${Array.from({ length: Math.min(n, 5) }, () => '<i></i>').join('')}</span><span class="mcn">${n} kort</span></button>`; }).join('') + '<button class="mc mcadd" id="mcAdd" aria-label="Ny kolonne">＋</button>' : '';
   updateDots();
   document.querySelectorAll('.cards').forEach(el => { el.scrollTop = vscroll[el.dataset.col] || 0; });
   document.querySelectorAll('.cards').forEach(el => new Sortable(el, {
