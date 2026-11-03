@@ -226,6 +226,8 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 @media (max-width:600px){.col,.newcol{width:100%}#board{padding:12px 16px;gap:32px;scroll-padding:0 16px}header{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}}
 #dots{display:flex;gap:8px;padding:8px 12px 10px;min-height:12px;overflow-x:auto;flex:none;background:var(--surface);border-top:1px solid var(--line);scrollbar-width:none}
 #dots::-webkit-scrollbar{display:none}
+.mc.ghost{opacity:.4}
+.mc.chosen{box-shadow:0 6px 16px rgba(16,24,40,.25)}
 .mc{position:relative;flex:1 0 74px;min-width:0;text-align:left;border:2px solid var(--line);border-top:4px solid var(--mc,var(--line));background:var(--bg);color:var(--text);border-radius:10px;padding:5px 7px 7px;font:inherit;cursor:pointer;overflow:hidden}
 .mc::before{content:'';position:absolute;inset:0;background:var(--mc,transparent);opacity:.07;pointer-events:none}
 .mc>*{position:relative}
@@ -943,7 +945,7 @@ function render() {
   $('#board').innerHTML = html;
   $('#board').scrollTo({ left: scroll, behavior: 'instant' });
   $('#dots').innerHTML = cols.length > 1 ? cols.map((c, i) => { const n = cards.filter(k => k.kolonne_id === c.id && !k.arkivert).length; return `<button class="mc" data-dot="${i}" style="${c.farge ? `--mc:${esc(c.farge)}` : ''}" aria-label="${esc(c.tittel)}, ${n} kort"><span class="mct">${esc(c.tittel)}</span><span class="mcb">${Array.from({ length: Math.min(n, 5) }, () => '<i></i>').join('')}</span><span class="mcn">${n} kort</span></button>`; }).join('') + '<button class="mc mcadd" id="mcAdd" aria-label="Ny kolonne">＋</button>' : '';
-  updateDots();
+  updateDots(); initDotsSort();
   document.querySelectorAll('.cards').forEach(el => { el.scrollTop = vscroll[el.dataset.col] || 0; });
   document.querySelectorAll('.cards').forEach(el => new Sortable(el, {
     group: 'kort', animation: 150, draggable: '.card',
@@ -1916,7 +1918,7 @@ const TOUR_BOARD = [
   { sel: '[data-colmenu]', title: 'Kolonnemeny', text: 'Gi kolonnen farge, sett en grense for antall kort, sorter etter prioritet, flytt eller arkiver den.' },
   { sel: '[data-addopen]', title: 'Legg til kort', text: 'Trykk, skriv en tittel og trykk Legg til.' },
   { sel: '.card', title: 'Kortene', text: 'Trykk på et kort for ansvarlig, frist, etikett, prioritet, sjekkliste, bilder og kommentarer. Hold inne og dra for å flytte det mellom kolonner.' },
-  { sel: '#dots .mc', title: 'Kolonneoversikt', text: 'På mobil ser du én kolonne om gangen. Her nederst ser du alle kolonnene med antall kort. Den du står på er markert, og du kan trykke på en for å hoppe dit.' }
+  { sel: '#dots .mc', title: 'Kolonneoversikt', text: 'På mobil ser du én kolonne om gangen. Her nederst ser du alle kolonnene med antall kort. Den du står på er markert, og du kan trykke på en for å hoppe dit. Hold inne en kolonne en stund for å flytte den.' }
 ];
 const toGuests = () => { openGuests(); gTab = 'liste'; renderGuests(); };
 const toTables = v => () => { openGuests(); gTab = 'bord'; gView = v || 'plan'; renderGuests(); };
@@ -2660,6 +2662,28 @@ function colColor(col) {
     const { error } = await sb.from('oppg_kolonner').update({ farge: f }).eq('id', col.id); if (!fail(error)) { col.farge = f; render(); }
   });
 }
+let dotsSort = null, dotsDragAt = 0;
+function initDotsSort() {
+  if (dotsSort) { try { dotsSort.destroy(); } catch (e) {} dotsSort = null; }
+  const bar = $('#dots'); if (!bar || cols.length < 2) return;
+  dotsSort = new Sortable(bar, {
+    animation: 150, draggable: '.mc[data-dot]', filter: '.mcadd', direction: 'horizontal',
+    forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4,
+    delay: 350, delayOnTouchOnly: true, touchStartThreshold: 8,
+    ghostClass: 'ghost', chosenClass: 'chosen',
+    onStart: () => { dragging = true; try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} },
+    onEnd: async () => {
+      dragging = false; dotsDragAt = Date.now();
+      const order = [...bar.querySelectorAll('.mc[data-dot]')].map(x => cols[+x.dataset.dot]);
+      const pos = cols.map(c => c.posisjon).sort((x, y) => x - y), changed = [];
+      order.forEach((c, i) => { if (c.posisjon !== pos[i]) { c.posisjon = pos[i]; changed.push(c); } });
+      if (!changed.length) return;
+      cols.sort((x, y) => x.posisjon - y.posisjon); render();
+      const r = await Promise.all(changed.map(c => sb.from('oppg_kolonner').update({ posisjon: c.posisjon }).eq('id', c.id)));
+      r.forEach(x => fail(x.error));
+    }
+  });
+}
 async function moveCol(i, dir) {
   const a = cols[i], b = cols[i + dir];
   [a.posisjon, b.posisjon] = [b.posisjon, a.posisjon];
@@ -2718,7 +2742,7 @@ document.addEventListener('click', e => {
   if (t.closest('#newColBtn')) return addColumn();
 });
 $('#board').addEventListener('scroll', updateDots, { passive: true });
-$('#dots').onclick = e => { if (e.target.closest('#mcAdd')) return addColumn(); const d = e.target.closest('[data-dot]'); if (!d) return; const col = $$('.col', $('#board'))[+d.dataset.dot]; if (col) $('#board').scrollTo({ left: col.offsetLeft - parseFloat(getComputedStyle($('#board')).paddingLeft), behavior: 'smooth' }); };
+$('#dots').onclick = e => { if (Date.now() - dotsDragAt < 400) return; if (e.target.closest('#mcAdd')) return addColumn(); const d = e.target.closest('[data-dot]'); if (!d) return; const col = $$('.col', $('#board'))[+d.dataset.dot]; if (col) $('#board').scrollTo({ left: col.offsetLeft - parseFloat(getComputedStyle($('#board')).paddingLeft), behavior: 'smooth' }); };
 $('#boardBtn').onclick = boardMenu;
 $('#meBtn').onclick = meMenu;
 $('#guestBtn').onclick = () => { gTab = 'oversikt'; openGuests(); };
