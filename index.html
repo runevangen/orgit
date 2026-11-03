@@ -779,7 +779,7 @@ async function loadBoard() {
     sb.from('oppg_elementer').select('*').eq('tavle_id', boardId).order('opprettet')
   ]);
   if (fail(c.error) || fail(k.error)) return;
-  if (!g.error) { const allG = g.data || []; guests = allG.filter(x => x.godkjent !== false); pending = allG.filter(x => x.godkjent === false); } if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || []; if (!el.error) elements = el.data || [];
+  if (!g.error) { const allG = g.data || []; guests = allG.filter(x => x.godkjent !== false); pending = allG.filter(x => x.godkjent === false); allG.forEach(x => { x.antall = 1; }); } if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || []; if (!el.error) elements = el.data || [];
   const allCols = c.data || []; cols = allCols.filter(x => !x.arkivert); archCols = allCols.filter(x => x.arkivert); cards = k.data || [];
   if (authMode) await loadUsers();
   await loadActivity(); await loadFiles(); await signBoardImages();
@@ -1224,7 +1224,7 @@ function relIssues() {
 const grp = id => groups.find(x => x.id === id);
 const gTag = g => { const x = grp(g.gruppe_id); return x ? `<span class="gtag" data-gtag="${x.id}" title="Vis gruppen ${esc(x.navn)}" style="background:${esc(x.farge)}">${esc(x.navn)}</span>` : ''; };
 const seatsUsed = tid => guests.filter(g => g.bord_id === tid && g.status !== 'kommer_ikke').reduce((n, g) => n + g.antall, 0);
-const sumBy = st => guests.filter(g => g.status === st).reduce((n, g) => n + g.antall, 0);
+const sumBy = st => guests.filter(g => g.status === st).length;
 function applyTopStyle() { document.documentElement.dataset.ts = topStyle; updateNav(); renderChips(); if (guestsOpen) renderGuests(); }
 function setTopStyle(v) { topStyle = v; try { localStorage.setItem('oppg_topstyle', v); } catch (e) {} applyTopStyle(); toast('Toppmeny ' + v); }
 function topStyleMenu() {
@@ -1256,7 +1256,7 @@ function closeGuests() { guestsOpen = false; $('#guests').classList.remove('kfs'
 function gGuestHtml(g) {
   const st = GST[g.status];
   return `<div class="grw" data-g="${g.id}" title="${st.n}">${gAv(g)}
-    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}${relsOf(g.id).length ? `<small>${relsOf(g.id).map(r => RELT[r.type].i).join('')}</small>` : ''}${gConf.has(g.id) ? '<small title="Relasjonsbrudd">⚠</small>' : ''}${g.invitert_tid && !g.svar_tid ? '<small class="sentbadge" title="Invitasjon sendt">📨 sendt</small>' : ''}${g.svar_tid ? '<small title="Svarte selv">✉</small>' : ''}${g.status !== 'kommer_ikke' ? `<div><button type="button" class="gtb ${g.bord_id ? 'set' : ''}" data-gtb="${g.id}">🪑 ${g.bord_id ? esc(tName(g.bord_id)) : 'Velg bord'}</button></div>` : ''}</div>
+    <div class="gname" data-gedit="${g.id}">${esc(g.navn)}${gTag(g)}${g.status === 'kanskje' ? '<small>kanskje</small>' : ''}${g.notat ? '<small>≡</small>' : ''}${relsOf(g.id).length ? `<small>${relsOf(g.id).map(r => RELT[r.type].i).join('')}</small>` : ''}${gConf.has(g.id) ? '<small title="Relasjonsbrudd">⚠</small>' : ''}${g.invitert_tid && !g.svar_tid ? '<small class="sentbadge" title="Invitasjon sendt">📨 sendt</small>' : ''}${g.svar_tid ? '<small title="Svarte selv">✉</small>' : ''}${g.status !== 'kommer_ikke' ? `<div><button type="button" class="gtb ${g.bord_id ? 'set' : ''}" data-gtb="${g.id}">🪑 ${g.bord_id ? esc(tName(g.bord_id)) : 'Velg bord'}</button></div>` : ''}</div>
     <button class="gbtn yes ${g.status === 'kommer' ? 'sel' : ''}" data-gs="kommer" data-id="${g.id}" aria-label="Kommer">✔</button>
     <button class="gbtn no ${g.status === 'kommer_ikke' ? 'sel' : ''}" data-gs="kommer_ikke" data-id="${g.id}" aria-label="Kommer ikke">✖</button></div>`;
 }
@@ -1273,12 +1273,12 @@ function similarGuests(p) {
     if (sc && g.status === 'venter') sc += 5; return { g, sc }; }).filter(x => x.sc >= 30).sort((x, y) => y.sc - x.sc).slice(0, 3).map(x => x.g);
 }
 function oversiktHtml() {
-  const keys = ['kommer', 'kanskje', 'venter', 'kommer_ikke'], tot = guests.reduce((n, g) => n + g.antall, 0), st = k => sumBy(k), pct = n => tot ? Math.round(n * 100 / tot) : 0;
+  const keys = ['kommer', 'kanskje', 'venter', 'kommer_ikke'], tot = guests.length, st = k => sumBy(k), pct = n => tot ? Math.round(n * 100 / tot) : 0;
   const invN = guests.filter(g => g.invitert_tid).length, nG = guests.length;
-  const grpRow = (id, navn, farge, list) => { const t = list.reduce((n, g) => n + g.antall, 0), by = k => list.filter(g => g.status === k).reduce((n, g) => n + g.antall, 0); return `<button type="button" class="ovrow ovg ${gGrp === id ? 'act' : ''}" data-gtag="${id}"><span class="gd" style="background:${esc(farge)}"></span><span class="ovl">${esc(navn)}</span><div class="gbar">${keys.map(k => `<i style="width:${t ? by(k) * 100 / t : 0}%;background:${GST[k].c}"></i>`).join('')}</div><b>${t}</b></button>`; };
+  const grpRow = (id, navn, farge, list) => { const t = list.length, by = k => list.filter(g => g.status === k).length; return `<button type="button" class="ovrow ovg ${gGrp === id ? 'act' : ''}" data-gtag="${id}"><span class="gd" style="background:${esc(farge)}"></span><span class="ovl">${esc(navn)}</span><div class="gbar">${keys.map(k => `<i style="width:${t ? by(k) * 100 / t : 0}%;background:${GST[k].c}"></i>`).join('')}</div><b>${t}</b></button>`; };
   const noGrp = guests.filter(g => !g.gruppe_id);
   return `<div class="gover">
-    <div class="ovhead"><div class="ovbig">${tot}</div><div>personer<br><small>${nG} ${nG === 1 ? 'gjest' : 'gjester'} på listen</small></div></div>
+    <div class="ovhead"><div class="ovbig">${nG}</div><div>${nG === 1 ? 'gjest' : 'gjester'}<br><small>på listen</small></div></div>
     ${tot ? `<div class="gbar ovbar">${keys.map(k => `<i style="width:${st(k) * 100 / tot}%;background:${GST[k].c}" title="${GST[k].n} ${st(k)}"></i>`).join('')}</div>` : ''}
     <h3>Svar</h3>${keys.map(k => `<button type="button" class="ovrow ${gFilter === k ? 'act' : ''}" data-gst="${k}"><span class="gd" style="background:${GST[k].c}"></span><span class="ovl">${GST[k].n}</span><b>${st(k)}</b><small>${pct(st(k))} %</small></button>`).join('')}
     <h3>Invitasjon</h3><div class="gbar ovbar"><i style="width:${nG ? invN * 100 / nG : 0}%;background:#067647"></i></div>
@@ -1291,7 +1291,7 @@ function oversiktHtml() {
 }
 function pendingHtml() {
   if (!pending.length) return '';
-  return `<div class="pendbox"><b>🆕 Nye via felles lenke (${pending.length})</b><p>De er ikke med i tallene før du har godkjent dem. Finnes de fra før, slå dem sammen.</p>${pending.map(p => { const sim = similarGuests(p); return `<div class="pendrow"><div class="pn"><b>${esc(p.navn)}</b><small>${p.svar_tid ? `svarte ${esc(GST[p.status].n.toLowerCase())}${p.antall > 1 ? ', ' + p.antall + ' personer' : ''}` : 'har ikke svart ennå'}</small></div>
+  return `<div class="pendbox"><b>🆕 Nye via felles lenke (${pending.length})</b><p>De er ikke med i tallene før du har godkjent dem. Finnes de fra før, slå dem sammen.</p>${pending.map(p => { const sim = similarGuests(p); return `<div class="pendrow"><div class="pn"><b>${esc(p.navn)}</b><small>${p.svar_tid ? `svarte ${esc(GST[p.status].n.toLowerCase())}` : 'har ikke svart ennå'}</small></div>
     ${sim.length ? `<div class="pmerge">${sim.map(g => `<button type="button" class="btn" data-pm="${p.id}|${g.id}">Samme som <b>${esc(g.navn)}</b></button>`).join('')}</div>` : ''}
     <div class="pbtns"><button type="button" class="btn primary" data-pa="${p.id}">Ny gjest</button><button type="button" class="btn" data-pd="${p.id}">Avvis</button></div></div>`; }).join('')}</div>`;
 }
@@ -1343,7 +1343,7 @@ function gRelClusters(list, nm) {
     if (comp.length) clusters.push(comp);
   });
   clusters.sort((a, b) => b.length - a.length);
-  const head = (t, n) => `<div class="gclhead">${t} <small>${n} ${n === 1 ? 'person' : 'personer'}</small></div>`;
+  const head = (t, n) => `<div class="gclhead">${t} <small>${n} ${n === 1 ? 'gjest' : 'gjester'}</small></div>`;
   return clusters.map(c => head('🔗 Knyttet av relasjoner', c.length) + c.map(gGuestHtml).join('')).join('') + (solo.length ? head('Uten relasjoner', solo.length) + solo.sort(nm).map(gGuestHtml).join('') : '');
 }
 function gListHtml() {
@@ -1414,7 +1414,7 @@ function renderGuests() {
   if (gTab === 'liste') {
     body = `<div class="gliste">${pendingHtml()}${store.get('oppg_guide_g') ? '' : '<div class="ghint"><span>👋 Ny her? Ta en rask guide om gjester og bord.</span><button class="btn primary" id="gHintGo" type="button">Start guide</button><button class="btn" id="gHintNo" type="button">Ikke nå</button></div>'}${sum}
       <div class="gsearch"><input id="gQ" type="search" placeholder="Søk …" value="${esc(gQuery)}"><button type="button" class="btn" id="gFilBtn">Filter ▾</button><button type="button" class="btn primary" id="gAddBtn">+ Gjest</button></div>
-      <form class="gadd ${gAddOpen ? '' : 'hidden'}" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><input id="gAntall" type="number" min="1" max="50" value="1" title="Antall personer" aria-label="Antall personer"><button class="btn primary">Legg til</button>
+      <form class="gadd ${gAddOpen ? '' : 'hidden'}" id="gAddForm"><input id="gNavn" placeholder="Navn på gjest eller gruppe …" maxlength="100" required autocomplete="off"><button class="btn primary">Legg til</button>
         ${groups.length ? `<select id="gGrpNew" aria-label="Gruppe"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gNewGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>` : ''}</form>
       <div class="gfil ${gFilOpen ? '' : 'hidden'}"><select id="gFil" aria-label="Status"><option value="">Alle svar</option>${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${gFilter === k ? 'selected' : ''}>${v.n}</option>`).join('')}<option value="inv" ${gFilter === 'inv' ? 'selected' : ''}>Invitert</option><option value="ikkeinv" ${gFilter === 'ikkeinv' ? 'selected' : ''}>Ikke invitert</option></select>
         <select id="gGrpF" aria-label="Gruppe"><option value="">Alle grupper</option><option value="none" ${gGrp === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gGrp === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select>
@@ -1431,10 +1431,10 @@ function renderGuests() {
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => (gConf.has(b.id) ? 1 : 0) - (gConf.has(a.id) ? 1 : 0) || gname(a).localeCompare(gname(b), 'nb') || (a.status === 'kommer' ? 0 : 1) - (b.status === 'kommer' ? 0 : 1) || a.navn.localeCompare(b.navn, 'nb'));
     const unpAll = unp, unpNorm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const unpF = unp.filter(g => (!gUs || g.status === gUs) && (!gUg || (gUg === 'none' ? !g.gruppe_id : g.gruppe_id === gUg)) && (!gUq || unpNorm(g.navn).includes(unpNorm(gUq)) || g.navn.toLowerCase().includes(gUq.toLowerCase())));
-    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${g.antall > 1 ? `<small>+${g.antall - 1}</small>` : ''}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}${hintOf[g.id] ? `<small class="chint">💞 skal sitte med ${esc(hintOf[g.id].join(', '))}</small>` : ''}</div></div>`;
+    const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}${hintOf[g.id] ? `<small class="chint">💞 skal sitte med ${esc(hintOf[g.id].join(', '))}</small>` : ''}</div></div>`;
     const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Bord</button><button class="btn ${gView === 'floor' ? 'on' : ''}" data-gview="floor">Lokale</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
     const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
-    body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unpF.length < unpAll.length ? `Viser ${unpF.length} av ${unpAll.length}` : unpAll.reduce((n, g) => n + g.antall, 0) + ' pers.'}</span></div>
+    body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unpF.length < unpAll.length ? `Viser ${unpF.length} av ${unpAll.length}` : unpAll.length + ' gjester'}</span></div>
       <div class="gunpf"><input id="gUq" type="search" placeholder="Søk blant de uplasserte …" value="${esc(gUq)}" class="${gUq ? 'fon' : ''}" autocomplete="off"><select id="gUg" aria-label="Gruppe" class="${gUg ? 'fon' : ''}"><option value="">Alle grupper</option><option value="none" ${gUg === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gUg === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select><select id="gUs" aria-label="Svar" class="${gUs ? 'fon' : ''}"><option value="">Alle svar</option>${['kommer', 'kanskje', 'venter'].map(k => `<option value="${k}" ${gUs === k ? 'selected' : ''}>${GST[k].n}</option>`).join('')}</select>${gUq || gUg || gUs ? '<button type="button" class="btn" id="gUclr">Fjern filter</button>' : ''}</div>
       <div class="gseats" data-bord="">${unpF.map(chip).join('') || `<p class="gempty" style="margin:8px 4px">${unpAll.length ? 'Ingen treff blant de uplasserte.' : 'Alle er plassert 🎉'}</p>`}</div></div><div class="gbtns">${tables.length ? '' : '<div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button></div>'}
       <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Bilde av bordplanen</button>
@@ -1456,7 +1456,7 @@ function renderGuests() {
   if (gTab === 'liste') {
     $('#gAddBtn', el).onclick = () => { gAddOpen = !gAddOpen; $('#gAddForm', el).classList.toggle('hidden', !gAddOpen); if (gAddOpen) $('#gNavn', el).focus(); };
     $('#gFilBtn', el).onclick = () => { gFilOpen = !gFilOpen; $('.gfil', el).classList.toggle('hidden', !gFilOpen); };
-    $('#gAddForm', el).onsubmit = async e => { e.preventDefault(); gNewGrp = ($('#gGrpNew', el) || {}).value || ''; await addGuest($('#gNavn', el).value, +$('#gAntall', el).value || 1, gNewGrp); setTimeout(() => $('#gNavn')?.focus(), 0); };
+    $('#gAddForm', el).onsubmit = async e => { e.preventDefault(); gNewGrp = ($('#gGrpNew', el) || {}).value || ''; await addGuest($('#gNavn', el).value, 1, gNewGrp); setTimeout(() => $('#gNavn')?.focus(), 0); };
     $('#gQ', el).oninput = e => { gQuery = e.target.value.trim(); $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
     $('#gGrpF', el).onchange = e => { gGrp = e.target.value; $('#gList', el).innerHTML = gListHtml(); bindGuestRows($('#gList', el)); gMarkFilters(el); };
     if ($('#gHintGo', el)) { $('#gHintGo', el).onclick = () => { store.set('oppg_guide_g', '1'); startTour(TOUR_GUESTS); }; $('#gHintNo', el).onclick = () => { store.set('oppg_guide_g', '1'); renderGuests(); }; }
@@ -1495,7 +1495,7 @@ function renderGuests() {
 }
 async function addGuest(navn, antall, gruppe) {
   navn = navn.trim(); if (!navn) return;
-  const { data, error } = await sb.from('oppg_gjester').insert({ tavle_id: boardId, navn, antall: Math.min(50, Math.max(1, antall || 1)), gruppe_id: gruppe || null }).select().single();
+  const { data, error } = await sb.from('oppg_gjester').insert({ tavle_id: boardId, navn, antall: 1, gruppe_id: gruppe || null }).select().single();
   if (fail(error, 'kunne ikke legge til gjesten')) return;
   guests.push(data); renderGuests();
 }
@@ -1512,8 +1512,7 @@ function editGuest(id) {
   const m = showModal(`<div class="gphoto"><span id="eAv">${gAv(g, 'lg')}</span><div class="btns"><button type="button" class="btn" id="eCam">📷 Ta bilde</button><button type="button" class="btn" id="ePick">🖼 Velg bilde</button>${g.bilde_sti ? '<button type="button" class="btn" id="eAdj">Juster</button><button type="button" class="btn danger" id="eRm">Fjern</button>' : ''}</div>
     <input type="file" id="eCamIn" accept="image/*" capture="user" class="hidden"><input type="file" id="ePickIn" accept="image/*" class="hidden"></div>
     <div class="field"><input class="titlein" id="eN" value="${esc(g.navn)}" maxlength="100" aria-label="Navn"></div>
-    <div class="two"><div class="field"><label>Antall personer</label><input id="eA" type="number" min="1" max="50" value="${g.antall}"></div>
-    <div class="field"><label>Svar</label><select id="eS">${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${g.status === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Svar</label><select id="eS">${Object.entries(GST).map(([k, v]) => `<option value="${k}" ${g.status === k ? 'selected' : ''}>${v.n}</option>`).join('')}</select></div>
     <div class="two"><div class="field"><label>Matvalg</label>${(() => { const mn = ((boards.find(x => x.id === boardId) || {}).arr_meny || '').split('\n').map(x => x.trim()).filter(Boolean); return mn.length ? `<select id="eMv"><option value="">Ikke valgt</option>${mn.map(x => `<option ${g.matvalg === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}${g.matvalg && !mn.includes(g.matvalg) ? `<option selected>${esc(g.matvalg)}</option>` : ''}</select>` : `<input id="eMv" maxlength="60" value="${esc(g.matvalg || '')}" placeholder="Valgfritt">`; })()}</div>
     <div class="field"><label>Allergier</label><input id="eAl" maxlength="300" value="${esc(g.allergier || '')}" placeholder="Valgfritt"></div></div>
     <div class="field"><label>Gruppe</label><select id="eG"><option value="">Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${g.gruppe_id === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}<option value="__new">+ Ny gruppe …</option></select></div>
@@ -1530,7 +1529,6 @@ function editGuest(id) {
   if ($('#eAdj', m)) $('#eAdj', m).onclick = () => adjustGuestPhoto(id);
   if (g.bilde_sti) $('#eAv img', m).onclick = () => viewPhoto(pubUrl(g.bilde_sti));
   $('#eN', m).onchange = e => { const v = e.target.value.trim(); if (v) saveGuest(id, { navn: v }); else e.target.value = g.navn; };
-  $('#eA', m).onchange = e => saveGuest(id, { antall: Math.min(50, Math.max(1, +e.target.value || 1)) });
   $('#eMv', m).onchange = e => saveGuest(id, { matvalg: e.target.value.trim() || null });
   $('#eAl', m).onchange = e => saveGuest(id, { allergier: e.target.value.trim() || null });
   $('#eS', m).onchange = e => { saveGuest(id, { status: e.target.value }); if (e.target.value === 'kommer_ikke') $('#eB', m).value = ''; };
@@ -1618,7 +1616,7 @@ function bindKart(el) {
       <defs>${nodes.map((g, i) => g.bilde_sti ? `<clipPath id="kc${i}"><circle r="${R - 2}"/></clipPath>` : '').join('')}</defs>
       <g id="kHulls">${kartHulls(nodes)}</g>
       ${edges.map((e, i) => { const A = kart.pos[e.a.id], B = kart.pos[e.b.id], conflict = bad.has([e.a.id, e.b.id].sort().join('|')), dim = sel && e.a.id !== sel && e.b.id !== sel; return `<g class="ke ${dim ? 'dim' : ''}" data-ke="${i}"><line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${e.r.type === 'sammen' ? '#12b76a' : '#e5484d'}" stroke-width="${conflict ? 6 : 3}" ${e.r.type === 'sammen' ? '' : 'stroke-dasharray="7 5"'} stroke-linecap="round"/>${conflict ? `<text x="${(A.x + B.x) / 2}" y="${(A.y + B.y) / 2 + 5}" text-anchor="middle" font-size="16" class="kwarn">⚠</text>` : ''}</g>`; }).join('')}
-      ${nodes.map((g, i) => { const p = kart.pos[g.id], dim = sel && g.id !== sel && !nb.has(g.id), solo = !relsOf(g.id).length; return `<g class="kn ${dim ? 'dim' : ''} ${g.id === sel ? 'sel' : ''} ${solo ? 'solo' : ''}" data-kn="${g.id}" transform="translate(${p.x},${p.y})">${solo ? `<circle r="${R + 7}" fill="none" stroke="${esc(col(g))}" stroke-width="2" stroke-dasharray="4 4"/>` : ''}<circle r="${R}" fill="${esc(col(g))}" stroke="${ring(g)}" stroke-width="4"/>${g.bilde_sti ? `<image href="${esc(pubUrl(g.bilde_sti))}" x="${-(R - 2)}" y="${-(R - 2)}" width="${2 * (R - 2)}" height="${2 * (R - 2)}" clip-path="url(#kc${i})" preserveAspectRatio="xMidYMid slice"/>` : `<text y="6" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">${esc((g.navn || '?').trim().charAt(0).toUpperCase())}</text>`}<text y="${R + 15}" text-anchor="middle" font-size="12" font-weight="600" class="klbl">${esc(g.navn.split(' ')[0])}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}</text></g>`; }).join('')}</svg>`;
+      ${nodes.map((g, i) => { const p = kart.pos[g.id], dim = sel && g.id !== sel && !nb.has(g.id), solo = !relsOf(g.id).length; return `<g class="kn ${dim ? 'dim' : ''} ${g.id === sel ? 'sel' : ''} ${solo ? 'solo' : ''}" data-kn="${g.id}" transform="translate(${p.x},${p.y})">${solo ? `<circle r="${R + 7}" fill="none" stroke="${esc(col(g))}" stroke-width="2" stroke-dasharray="4 4"/>` : ''}<circle r="${R}" fill="${esc(col(g))}" stroke="${ring(g)}" stroke-width="4"/>${g.bilde_sti ? `<image href="${esc(pubUrl(g.bilde_sti))}" x="${-(R - 2)}" y="${-(R - 2)}" width="${2 * (R - 2)}" height="${2 * (R - 2)}" clip-path="url(#kc${i})" preserveAspectRatio="xMidYMid slice"/>` : `<text y="6" text-anchor="middle" font-size="17" font-weight="700" fill="#fff">${esc((g.navn || '?').trim().charAt(0).toUpperCase())}</text>`}<text y="${R + 15}" text-anchor="middle" font-size="12" font-weight="600" class="klbl">${esc(g.navn.split(' ')[0])}</text></g>`; }).join('')}</svg>`;
   }
   if (kart.full) wrap.insertAdjacentHTML('beforeend', '<div class="kftool"><button class="btn" id="kfClose">✕ Lukk</button><span class="kftitle">Relasjoner</span><button class="btn" id="kfZm" aria-label="Zoom ut">−</button><button class="btn" id="kfZp" aria-label="Zoom inn">+</button><button class="btn" id="kfFit">Tilpass</button></div><div class="kfinfo" id="kfInfo"></div>');
   const infoEl = kart.full ? $('#kfInfo', wrap) : info;
@@ -1627,7 +1625,7 @@ function bindKart(el) {
     const g = guests.find(x => x.id === kart.sel);
     if (!g) { infoEl.innerHTML = (nodes.length && !kart.full) ? '<p style="color:var(--muted);margin:0">Trykk på en person for å se relasjonene. Dra bakgrunnen for å flytte kartet, og klyp (eller bruk + og −) for å zoome. Dra en person for å flytte vedkommende.</p>' : ''; return; }
     const rs = relsOf(g.id).map(r => ({ r, o: relOther(r, g.id) })).filter(x => x.o);
-    infoEl.innerHTML = `<div class="kcard"><div class="khead"><b>${esc(g.navn)}</b>${g.antall > 1 ? `<small> +${g.antall - 1}</small>` : ''}<small> · ${GST[g.status].n}${g.bord_id ? ' · ' + esc(tName(g.bord_id)) : ''}${grp(g.gruppe_id) ? ` · <button type="button" class="klink" data-kg="${g.gruppe_id}">${esc(grp(g.gruppe_id).navn)}</button>` : ''}</small></div>
+    infoEl.innerHTML = `<div class="kcard"><div class="khead"><b>${esc(g.navn)}</b><small> · ${GST[g.status].n}${g.bord_id ? ' · ' + esc(tName(g.bord_id)) : ''}${grp(g.gruppe_id) ? ` · <button type="button" class="klink" data-kg="${g.gruppe_id}">${esc(grp(g.gruppe_id).navn)}</button>` : ''}</small></div>
       ${rs.map(x => `<button class="krel" data-ko="${x.o.id}">${RELT[x.r.type].i} ${RELT[x.r.type].n.toLowerCase()}: <b>${esc(x.o.navn)}</b>${bad.has([g.id, x.o.id].sort().join('|')) ? ' ⚠' : ''}</button>`).join('') || '<p style="color:var(--muted);margin:6px 0">Ingen relasjoner ennå.</p>'}
       <div class="khbtn"><button class="btn" id="kOpen">Åpne gjest</button><button class="btn primary" id="kNew">+ Ny relasjon</button></div></div>`;
     const leave = () => { if (kart.full) { kart.full = false; kart.view = null; renderGuests(); } };
@@ -1714,7 +1712,7 @@ function openGuess() {
   document.addEventListener('keydown', key); document.body.classList.add('noscroll');
   const head = (t) => `<div class="gamehead"><button class="btn" id="gmBack">← Tilbake</button><b>${t}</b><button class="btn" id="gmSw">${view === 'deck' ? 'Resultat' : 'Gjett'}</button></div>`;
   const stats = () => {
-    const cnt = (f) => guests.filter(f).reduce((n, g) => n + g.antall, 0);
+    const cnt = (f) => guests.filter(f).length;
     const real = { kommer: cnt(g => g.status === 'kommer'), kanskje: cnt(g => g.status === 'kanskje'), nei: cnt(g => g.status === 'kommer_ikke') };
     const act = guests.filter(g => g.status !== 'kommer_ikke');
     const gj = v => cnt(g => g.status !== 'kommer_ikke' && g.status !== 'kommer' && guess[g.id] === v);
@@ -1723,7 +1721,7 @@ function openGuess() {
     const unsureReal = cnt(g => g.status === 'kanskje' && !guess[g.id]);
     const low = real.kommer + ja, mid = Math.round(low + (mb + unsureReal) / 2 + open / 2), high = low + mb + unsureReal + open;
     const seats = tables.reduce((n, t) => n + (t.plasser || 0), 0);
-    const byG = {}; act.forEach(g => { const k = g.gruppe_id || '_'; const o = byG[k] = byG[k] || { ja: 0, mb: 0, nei: 0, aapen: 0 }; if (g.status === 'kommer') o.ja += g.antall; else if (guess[g.id] === 'ja') o.ja += g.antall; else if (guess[g.id] === 'kanskje') o.mb += g.antall; else if (guess[g.id] === 'nei') o.nei += g.antall; else o.aapen += g.antall; });
+    const byG = {}; act.forEach(g => { const k = g.gruppe_id || '_'; const o = byG[k] = byG[k] || { ja: 0, mb: 0, nei: 0, aapen: 0 }; if (g.status === 'kommer') o.ja += 1; else if (guess[g.id] === 'ja') o.ja += 1; else if (guess[g.id] === 'kanskje') o.mb += 1; else if (guess[g.id] === 'nei') o.nei += 1; else o.aapen += 1; });
     return { real, ja, mb, nei, open, low, mid, high, seats, byG };
   };
   const draw = () => {
@@ -1734,7 +1732,7 @@ function openGuess() {
       <label class="remember"><input type="checkbox" id="gmAll" ${withAnswered ? 'checked' : ''}> Ta med de som allerede har svart</label>
       <div class="gameprog"><div style="width:${all.length ? Math.round(done * 100 / all.length) : 0}%"></div></div><div class="gamecount">${done} av ${all.length} gjettet</div>
       ${g ? `<div class="gamestage"><div class="gcard" id="gCard"><div class="gstamp yes">KOMMER</div><div class="gstamp no">KOMMER IKKE</div><div class="gstamp maybe">USIKKER</div>
-        <div class="gcav">${gAv(g, 'lg')}</div><h2>${esc(g.navn)}</h2><div class="gcmeta">${gTag(g)}${g.antall > 1 ? `<small>+${g.antall - 1} i følget</small>` : ''}${g.status !== 'venter' ? `<small>har svart: ${GST[g.status].n.toLowerCase()}</small>` : ''}</div>${g.notat ? `<p class="gcnote">${esc(g.notat)}</p>` : ''}</div></div>
+        <div class="gcav">${gAv(g, 'lg')}</div><h2>${esc(g.navn)}</h2><div class="gcmeta">${gTag(g)}${g.status !== 'venter' ? `<small>har svart: ${GST[g.status].n.toLowerCase()}</small>` : ''}</div>${g.notat ? `<p class="gcnote">${esc(g.notat)}</p>` : ''}</div></div>
         <div class="gamebtns"><button class="btn gno" id="gmNo" aria-label="Kommer ikke">✖</button><button class="btn gmaybe" id="gmMb" aria-label="Usikker">?</button><button class="btn gyes" id="gmYes" aria-label="Kommer">✔</button></div>
         <div class="gamebtns2"><button class="btn" id="gmUndo" ${hist.length ? '' : 'disabled'}>↩︎ Angre</button><button class="btn" id="gmSkip">Hopp over</button></div>`
       : `<div class="gamedone"><div class="big">🎉</div><h2>${all.length ? 'Alle er gjettet!' : 'Ingen å gjette på'}</h2><p>${all.length ? 'Se hva det betyr for størrelsen på lokalet.' : 'Ta med de som har svart, eller legg til flere gjester.'}</p><button class="btn primary" id="gmRes">Se resultat</button><button class="btn" id="gmUndo" ${hist.length ? '' : 'disabled'} style="margin-top:8px">↩︎ Angre siste</button></div>`}</div>`;
@@ -1763,9 +1761,9 @@ function openGuess() {
   };
   const drawResult = () => {
     const s = stats(), rows = Object.entries(s.byG).map(([k, o]) => { const x = grp(k === '_' ? null : k); return { n: x ? x.navn : 'Uten gruppe', c: x ? x.farge : '#98a2b3', ...o, t: o.ja + o.mb + o.nei + o.aapen }; }).sort((a, b) => b.t - a.t);
-    const txt = `Gjetting – hvor mange kommer? (${new Date().toLocaleDateString('nb-NO')})\nSannsynlig: ca. ${s.mid} personer\nMinst: ${s.low} (bare de som kommer eller er gjettet ja)\nMest: ${s.high}\n${s.seats ? 'Plasser ved bordene: ' + s.seats : ''}`;
+    const txt = `Gjetting – hvor mange kommer? (${new Date().toLocaleDateString('nb-NO')})\nSannsynlig: ca. ${s.mid} gjester\nMinst: ${s.low} (bare de som kommer eller er gjettet ja)\nMest: ${s.high}\n${s.seats ? 'Plasser ved bordene: ' + s.seats : ''}`;
     ov.innerHTML = head('Resultat <small>gjetting</small>') + `<div class="gamebody">
-      <div class="gres"><div class="gbig">${s.mid}</div><div>personer kommer sannsynligvis<br><small>mellom <b>${s.low}</b> og <b>${s.high}</b></small></div></div>
+      <div class="gres"><div class="gbig">${s.mid}</div><div>gjester kommer sannsynligvis<br><small>mellom <b>${s.low}</b> og <b>${s.high}</b></small></div></div>
       ${s.seats ? `<div class="gseatbar"><div style="width:${Math.min(100, Math.round(s.mid * 100 / s.seats))}%"></div></div><p class="gamehint">Plasser ved bordene: <b>${s.seats}</b>. ${s.mid > s.seats ? `Du trenger ca. ${s.mid - s.seats} plasser til.` : `Det er ca. ${s.seats - s.mid} ledige plasser.`}</p>` : '<p class="gamehint">Legg inn bord under Bordplassering for å sammenligne med plassene.</p>'}
       <div class="gtab"><div><span class="gd" style="background:#12b76a"></span>Har svart kommer<b>${s.real.kommer}</b></div><div><span class="gd" style="background:#12b76a;opacity:.55"></span>Gjettet kommer<b>${s.ja}</b></div><div><span class="gd" style="background:#e5b400"></span>Gjettet usikker / svart kanskje<b>${s.mb + s.real.kanskje}</b></div><div><span class="gd" style="background:#d92d20"></span>Gjettet kommer ikke<b>${s.nei}</b></div><div><span class="gd" style="background:#667085"></span>Ikke gjettet ennå<b>${s.open}</b></div></div>
       <h3 style="margin:14px 0 6px;font-size:15px">Per gruppe</h3>
@@ -1884,7 +1882,7 @@ function seatPicker(tid, k) {
   const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort((a, b) => ((grp(a.gruppe_id) || { navn: '\uffff' }).navn).localeCompare((grp(b.gruppe_id) || { navn: '\uffff' }).navn, 'nb') || a.navn.localeCompare(b.navn, 'nb'));
   if (!unp.length) return toast('Ingen uplasserte gjester');
   const hint = g => { const r = relsOf(g.id).map(x => ({ x, o: relOther(x, g.id) })).filter(y => y.o && y.o.bord_id === tid && y.o.status !== 'kommer_ikke'); const no = r.filter(y => y.x.type === 'ikke_sammen').map(y => y.o.navn), yes = r.filter(y => y.x.type === 'sammen').map(y => y.o.navn); return (no.length ? ' ⛔ ' + no.join(', ') : '') + (yes.length ? ' 💞 ' + yes.join(', ') : ''); };
-  sheet(`Sett ved ${t.navn}`, unp.map(g => ({ label: `${g.navn}${g.antall > 1 ? ' (+' + (g.antall - 1) + ')' : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}${hint(g)}`, fn: () => saveGuest(g.id, { bord_id: tid, plass: k }) })));
+  sheet(`Sett ved ${t.navn}`, unp.map(g => ({ label: `${g.navn}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}${hint(g)}`, fn: () => saveGuest(g.id, { bord_id: tid, plass: k }) })));
 }
 const fmtDato = d => { if (!d) return ''; const t = new Date(d + 'T00:00:00').toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
 function editInvite() {
@@ -1924,21 +1922,21 @@ const toGuests = () => { openGuests(); gTab = 'liste'; renderGuests(); };
 const toTables = v => () => { openGuests(); gTab = 'bord'; gView = v || 'plan'; renderGuests(); };
 const TOUR_GUESTS = [
   { sel: '.gtabs, #mainnav', title: 'Fanene', text: 'Oversikt viser status. Gjesteliste er for navn og svar. Bord er for å sette gjestene ved bord, og Relasjoner viser hvem som henger sammen.', before: toGuests },
-  { sel: '.gsum', title: 'Status', text: 'Antall personer som kommer, kanskje, venter og ikke kommer. Trykk på et tall for å vise bare de gjestene, eller på Oversikt for mer.' },
-  { sel: '#gAddBtn', title: 'Legg til gjester', text: 'Trykk + Gjest, skriv navn (en person eller en gruppe), antall personer og eventuelt gruppe, og trykk Legg til.' },
+  { sel: '.gsum', title: 'Status', text: 'Antall gjester som kommer, kanskje, venter og ikke kommer. Trykk på et tall for å vise bare de gjestene, eller på Oversikt for mer.' },
+  { sel: '#gAddBtn', title: 'Legg til gjester', text: 'Trykk + Gjest, skriv navnet på gjesten og eventuelt gruppe, og trykk Legg til.' },
   { sel: '#gMoreBtn', title: 'Grupper og mer', text: 'Under Mer finner du Grupper, Gjetteleken, utskrift av navnekort og eksport. Lag grupper som Familie, Bodø og Trondheim-gjengen med egen farge. De brukes til filter og når du plasserer folk ved bord.' },
   { sel: '#gInviteBtn, #gMoreBtn', title: 'Invitasjon', text: 'Under Inviter skriver du dato, sted, svarfrist og en hilsen som gjestene ser.' },
   { sel: '#gInviteBtn, #gMoreBtn', title: 'Svarlenker', text: 'Også under Inviter: hver gjest får en egen lenke og kan svare selv. Svaret dukker opp i listen med en gang.' },
   { sel: '.gbtn.yes', title: 'Kryss av', text: '✔ betyr kommer, ✖ betyr kommer ikke. Trykk igjen for å angre. «Kanskje» velger du inni gjesten.', missing: 'Når du har lagt til gjester, vises ✔ og ✖ på hver gjest. Trykk for å krysse av om de kommer.' },
   { sel: '.gtb', title: 'Velg bord', text: 'Sett gjesten ved et bord direkte herfra.', missing: 'Hver gjest får en knapp «Velg bord» der du kan sette dem ved et bord.' },
-  { sel: '.gname', title: 'Alt om gjesten', text: 'Trykk på navnet for bilde, antall, gruppe, relasjoner (skal eller bør ikke sitte sammen) og notater.', missing: 'Trykk på en gjest for bilde, antall, gruppe, relasjoner og notater.' },
+  { sel: '.gname', title: 'Alt om gjesten', text: 'Trykk på navnet for bilde, gruppe, relasjoner (skal eller bør ikke sitte sammen) og notater.', missing: 'Trykk på en gjest for bilde, antall, gruppe, relasjoner og notater.' },
   { sel: '.gsearch', title: 'Søk og filter', text: 'Søk på navn, filtrer på svar og gruppe, og velg hvordan listen sorteres.' }
 ];
 const TOUR_INVITE = [
   { sel: '#gInviteBtn, #gMoreBtn', title: '1. Fyll ut invitasjonen', text: 'Trykk Inviter og velg Invitasjon. Skriv tittel, dato, klokkeslett, sted, svarfrist og en hilsen. Dette ser gjestene øverst på svarsiden og i meldingen du sender.', before: toGuests },
   { sel: '#gInviteBtn, #gMoreBtn', title: '2. Hent svarlenkene', text: 'Trykk Inviter og velg Svarlenker. Du får en personlig lenke til hver gjest. Lenkene kan ikke gjettes, så send hver gjest bare sin egen.' },
   { title: '3. Del lenken', text: 'Trykk Del for å sende en ferdig melding på SMS, Messenger eller e-post, med dato, sted og lenke. Kopier alle gir en liste med navn og lenker du kan lime inn.' },
-  { title: '4. Dette ser gjesten', text: 'Gjesten åpner lenken uten å logge inn, ser invitasjonen og velger Jeg kommer, Kanskje eller Kommer ikke. De kan velge antall personer og skrive en melding, for eksempel om allergier. Etterpå kan de legge arrangementet i kalenderen.' },
+  { title: '4. Dette ser gjesten', text: 'Gjesten åpner lenken uten å logge inn, ser invitasjonen og velger Jeg kommer, Kanskje eller Kommer ikke. De kan skrive en melding, for eksempel om allergier. Etterpå kan de legge arrangementet i kalenderen.' },
   { sel: '.gsum', title: '5. Svarene kommer inn', text: 'Når en gjest svarer, oppdateres tallene her og gjesten får riktig status automatisk. Gjester som sier at de ikke kommer, tas av bordet.' },
   { sel: '[title="Svarte selv"]', title: 'Svarte selv', text: 'Gjester som har svart via lenken har et ✉ ved navnet. Trykk på navnet for å lese meldingen deres.', missing: 'Gjester som har svart via lenken får et ✉ ved navnet. Trykk på navnet for å lese meldingen deres.' },
   { sel: '[data-gtab=bord]', title: 'Så: bordplassering', text: 'Når svarene er inne, setter du de som kommer ved bord under Bord.' }
@@ -2028,14 +2026,14 @@ function showFood() {
     const rows = Object.values(by).sort((a, b) => b.n - a.n || a.navn.localeCompare(b.navn, 'nb'));
     const al = pool.filter(g => g.allergier).sort((a, b) => a.navn.localeCompare(b.navn, 'nb'));
     const total = pool.reduce((n, g) => n + g.antall, 0);
-    const txt = [`Matvalg (${total} personer${onlyComing ? ', bare de som kommer' : ', ikke de som har sagt nei'}):`, ...rows.map(o => `${o.navn}: ${o.n} (${sub(o)})`), none ? `Ikke valgt: ${none.n} (${sub(none)})` : '', al.length ? '\nAllergier:' : '', ...al.map(g => `${g.navn} (${g.antall}${g.status !== 'kommer' ? ', ' + GST[g.status].n.toLowerCase() : ''}): ${g.allergier}`)].filter(x => x !== '').join('\n');
-    m.innerHTML = `<h2>Matvalg og allergier</h2><p style="color:var(--muted);margin:0 0 8px;font-size:13px">Teller alle som ikke har sagt nei, også de som ikke har svart ennå. Matvalget gjelder hele følget.</p>
+    const txt = [`Matvalg (${total} gjester${onlyComing ? ', bare de som kommer' : ', ikke de som har sagt nei'}):`, ...rows.map(o => `${o.navn}: ${o.n} (${sub(o)})`), none ? `Ikke valgt: ${none.n} (${sub(none)})` : '', al.length ? '\nAllergier:' : '', ...al.map(g => `${g.navn}${g.status !== 'kommer' ? ' (' + GST[g.status].n.toLowerCase() + ')' : ''}: ${g.allergier}`)].filter(x => x !== '').join('\n');
+    m.innerHTML = `<h2>Matvalg og allergier</h2><p style="color:var(--muted);margin:0 0 8px;font-size:13px">Teller alle som ikke har sagt nei, også de som ikke har svart ennå.</p>
       <label class="remember"><input type="checkbox" id="fdOnly" ${onlyComing ? 'checked' : ''}> Bare de som har svart at de kommer</label>
       <div class="check" style="margin-top:6px"><b>Totalt</b><b>${total}</b></div>
       ${rows.map(o => `<div class="check"><span>${esc(o.navn)}<br><small style="color:var(--muted)">${esc(sub(o))}</small></span><b>${o.n}</b></div>`).join('') || '<p style="color:var(--muted)">Ingen har valgt mat ennå. Legg inn valg under Invitasjon, eller på hver gjest.</p>'}
       ${none ? `<div class="check"><span style="color:var(--muted)">Ikke valgt<br><small>${esc(sub(none))}</small></span><b>${none.n}</b></div>` : ''}
       <h3 style="margin:14px 0 6px;font-size:15px">Allergier og kostholdsbehov</h3>
-      ${al.map(g => `<div class="check"><span><b>${esc(g.navn)}</b> (${g.antall}) <small style="color:var(--muted)">${esc(g.allergier)}${g.status !== 'kommer' ? ' · ' + esc(GST[g.status].n.toLowerCase()) : ''}</small></span></div>`).join('') || '<p style="color:var(--muted)">Ingen har oppgitt noe.</p>'}
+      ${al.map(g => `<div class="check"><span><b>${esc(g.navn)}</b> <small style="color:var(--muted)">${esc(g.allergier)}${g.status !== 'kommer' ? ' · ' + esc(GST[g.status].n.toLowerCase()) : ''}</small></span></div>`).join('') || '<p style="color:var(--muted)">Ingen har oppgitt noe.</p>'}
       <div class="bar"><button type="button" class="btn" id="fdX">Lukk</button><button type="button" class="btn primary" id="fdC">Kopier til kokken</button></div>`;
     $('#fdX', m).onclick = closeModal;
     $('#fdOnly', m).onchange = e => { onlyComing = e.target.checked; draw(); };
@@ -2150,7 +2148,7 @@ async function showRsvp(token) {
   let { data, error } = await sb.rpc('oppg_rsvp_hent3', { p_token: token });
   if (error) ({ data, error } = await sb.rpc('oppg_rsvp_hent2', { p_token: token }));
   if (error || !data || !data.length) { box.innerHTML = '<div class="lbox"><h1>Ugyldig lenke</h1><p>Lenken finnes ikke lenger. Be arrangøren om en ny.</p></div>'; return; }
-  const g = data[0]; let st = g.status === 'venter' ? '' : g.status, n = g.antall, msg = g.melding || '', mv = g.matvalg || '', al = g.allergier || '';
+  const g = data[0]; let st = g.status === 'venter' ? '' : g.status, n = 1, msg = g.melding || '', mv = g.matvalg || '', al = g.allergier || '';
   const MENY = (g.arr_meny || '').split('\n').map(x => x.trim()).filter(Boolean);
   const ST = { kommer: '✔ Jeg kommer', kanskje: '? Kanskje', kommer_ikke: '✖ Kommer ikke' };
   const draw = () => {
@@ -2158,7 +2156,6 @@ async function showRsvp(token) {
       ${g.arr_dato || g.arr_sted || g.arr_tekst || g.arr_frist ? `<div class="invbox">${g.arr_dato ? `<div class="when">📅 ${esc(fmtDato(g.arr_dato))}${g.arr_tid ? ' kl. ' + esc(g.arr_tid) : ''}</div>` : ''}${g.arr_sted ? `<div>📍 ${esc(g.arr_sted)}</div>` : ''}${g.arr_tekst ? `<div class="txt">${esc(g.arr_tekst)}</div>` : ''}${g.arr_frist ? `<div class="frist">Svar gjerne innen ${esc(fmtDato(g.arr_frist).toLowerCase())}</div>` : ''}</div>` : ''}
       <div class="rsvpq">Kommer du?</div>
       <div class="rsvpbtns">${Object.entries(ST).map(([k, v]) => `<button type="button" class="${k} ${st === k ? 'sel' : ''}" data-st="${k}">${v}</button>`).join('')}</div>
-      ${st && st !== 'kommer_ikke' ? `<div class="rsvpq">Hvor mange kommer?</div><div class="stepper"><button type="button" class="btn" id="rMin" aria-label="Færre">−</button><b>${n}</b><button type="button" class="btn" id="rPlu" aria-label="Flere">+</button></div>` : ''}
       ${st && st !== 'kommer_ikke' && MENY.length ? `<div class="rsvpq">Matvalg</div><div class="rsvpbtns">${MENY.map((x, i) => `<button type="button" class="${mv === x ? 'sel' : ''}" data-mv="${i}">${esc(x)}</button>`).join('')}</div>` : ''}
       ${st && st !== 'kommer_ikke' ? `<div class="field"><label>Allergier eller kostholdsbehov</label><input id="rAl" maxlength="300" placeholder="F.eks. nøtter, gluten, vegetar" value="${esc(al)}"></div>` : ''}
       <div class="field"><label>Melding (noe vi bør vite …)</label><textarea id="rMsg" maxlength="300" placeholder="Valgfritt">${esc(msg)}</textarea></div>
@@ -2166,12 +2163,11 @@ async function showRsvp(token) {
     const keep = () => { msg = $('#rMsg', box).value; if ($('#rAl', box)) al = $('#rAl', box).value; };
     box.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { keep(); st = b.dataset.st; draw(); });
     box.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { keep(); mv = MENY[+b.dataset.mv]; draw(); });
-    if ($('#rMin', box)) { $('#rMin', box).onclick = () => { keep(); n = Math.max(1, n - 1); draw(); }; $('#rPlu', box).onclick = () => { keep(); n = Math.min(20, n + 1); draw(); }; }
     $('#rSend', box).onclick = async () => {
       keep(); const gone = st === 'kommer_ikke';
       const r = await sb.rpc('oppg_rsvp_svar2', { p_token: token, p_status: st, p_antall: gone ? null : n, p_melding: msg, p_matvalg: gone ? null : mv, p_allergier: gone ? null : al });
       if (r.error || r.data !== true) { $('#rErr', box).textContent = 'Kunne ikke sende svaret. Prøv igjen.'; return; }
-      box.innerHTML = `<div class="lbox rsvpdone"><div class="big">${st === 'kommer' ? '🎉' : st === 'kanskje' ? '👍' : '👋'}</div><h1>Takk, ${esc(g.navn.split(' ')[0])}!</h1><p>${st === 'kommer' ? `Vi gleder oss! Du har svart at du kommer${n > 1 ? ` (${n} personer)` : ''}.` : st === 'kanskje' ? 'Du har svart kanskje. Gi gjerne beskjed når du vet mer.' : 'Synd at du ikke kan komme. Takk for beskjed.'}</p>${st !== 'kommer_ikke' && g.arr_dato ? '<div class="rcal"><div class="rsvpq" style="margin-top:4px">📅 Legg i kalender</div><button class="btn" id="rIcs" style="width:100%;margin-bottom:6px">Apple / iPhone (kalenderfil)</button><a class="btn" id="rGoogle" target="_blank" rel="noopener" style="display:block;text-align:center;margin-bottom:6px">Google Kalender</a><a class="btn" id="rOutlook" target="_blank" rel="noopener" style="display:block;text-align:center;margin-bottom:10px">Outlook</a></div>' : ''}<button class="btn" id="rAgain" style="width:100%">Endre svar</button></div>`;
+      box.innerHTML = `<div class="lbox rsvpdone"><div class="big">${st === 'kommer' ? '🎉' : st === 'kanskje' ? '👍' : '👋'}</div><h1>Takk, ${esc(g.navn.split(' ')[0])}!</h1><p>${st === 'kommer' ? `Vi gleder oss! Du har svart at du kommer.` : st === 'kanskje' ? 'Du har svart kanskje. Gi gjerne beskjed når du vet mer.' : 'Synd at du ikke kan komme. Takk for beskjed.'}</p>${st !== 'kommer_ikke' && g.arr_dato ? '<div class="rcal"><div class="rsvpq" style="margin-top:4px">📅 Legg i kalender</div><button class="btn" id="rIcs" style="width:100%;margin-bottom:6px">Apple / iPhone (kalenderfil)</button><a class="btn" id="rGoogle" target="_blank" rel="noopener" style="display:block;text-align:center;margin-bottom:6px">Google Kalender</a><a class="btn" id="rOutlook" target="_blank" rel="noopener" style="display:block;text-align:center;margin-bottom:10px">Outlook</a></div>' : ''}<button class="btn" id="rAgain" style="width:100%">Endre svar</button></div>`;
       $('#rAgain', box).onclick = draw;
       if ($('#rIcs', box)) {
         const t = g.arr_navn || g.tavle_navn, pad = x => String(x).padStart(2, '0'), d0 = g.arr_dato, fm = dt => `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}`;
@@ -2437,9 +2433,9 @@ async function buildPlanCanvas(o) {
   // navneliste
   const blocks = [];
   if (o.list) {
-    cells.forEach(c => blocks.push({ title: `${c.t.navn} (${c.slots.filter(Boolean).length}/${c.t.plasser})`, lines: c.list.map(g => `${g.navn}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}`) }));
+    cells.forEach(c => blocks.push({ title: `${c.t.navn} (${c.slots.filter(Boolean).length}/${c.t.plasser})`, lines: c.list.map(g => `${g.navn}${grp(g.gruppe_id) ? ' · ' + grp(g.gruppe_id).navn : ''}`) }));
     const unp = guests.filter(g => !g.bord_id && g.status !== 'kommer_ikke').sort(byGrp);
-    if (unp.length) blocks.push({ title: 'Ikke plassert', lines: unp.map(g => `${g.navn}${g.antall > 1 ? ' +' + (g.antall - 1) : ''}`) });
+    if (unp.length) blocks.push({ title: 'Ikke plassert', lines: unp.map(g => g.navn) });
   }
   const COLS = 3, colW = (PW - 2 * M) / COLS, colY = Array(COLS).fill(planEnd + (blocks.length ? 50 : 0));
   blocks.forEach(b => { const ci = colY.indexOf(Math.min(...colY)); b.col = ci; b.y = colY[ci]; colY[ci] += 30 + Math.max(1, b.lines.length) * 21 + 14; });
@@ -2447,10 +2443,10 @@ async function buildPlanCanvas(o) {
   const cv = document.createElement('canvas'); cv.width = PW * SC; cv.height = H * SC;
   const ctx = cv.getContext('2d'); ctx.scale(SC, SC); ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PW, H);
-  const b = boards.find(z => z.id === boardId), coming = guests.filter(g => g.status !== 'kommer_ikke').reduce((n, g) => n + g.antall, 0), placed = seated.reduce((n, g) => n + g.antall, 0);
+  const b = boards.find(z => z.id === boardId), coming = guests.filter(g => g.status !== 'kommer_ikke').length, placed = seated.length;
   ctx.fillStyle = '#1b1f29'; ctx.font = `700 36px ${FONT}`; ctx.fillText('Bordplassering', M, 62);
   ctx.fillStyle = '#667085'; ctx.font = `16px ${FONT}`;
-  ctx.fillText(`${b ? b.navn + ' · ' : ''}${placed} av ${coming} personer plassert · ${new Date().toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })}`, M, 92);
+  ctx.fillText(`${b ? b.navn + ' · ' : ''}${placed} av ${coming} gjester plassert · ${new Date().toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })}`, M, 92);
   let lx = M; legend.forEach(l => { ctx.fillStyle = l.farge; ctx.beginPath(); ctx.arc(lx + 8, headH - 26, 8, 0, 7); ctx.fill(); ctx.fillStyle = '#1b1f29'; ctx.font = `14px ${FONT}`; ctx.fillText(l.navn, lx + 22, headH - 21); lx += 22 + ctx.measureText(l.navn).width + 24; });
   const avatar = (cx, cy, g, ghost) => {
     ctx.save(); ctx.globalAlpha = ghost ? .45 : 1;
@@ -2599,7 +2595,7 @@ function cardsExport() {
     <label class="remember"><input type="checkbox" id="cUn"> Ta med gjester som ikke er plassert</label>
     <div id="cPrev" style="margin:8px 0;height:42vh;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#e4e7ee"><div id="cWrap" style="position:relative"></div></div>
     <div class="photobtns"><button class="btn primary" id="cPr">Skriv ut / lagre som PDF</button><button class="btn" id="cTab">Åpne i ny fane</button><button class="btn" id="cX">Lukk</button></div>
-    <p style="color:var(--muted);font-size:12px;margin:8px 0 0">Skriv ut i størrelse 100 % (ikke «tilpass til side») på A4. Gjester med følge får ett kort. Telt-kort brettes langs den stiplede streken.</p>`);
+    <p style="color:var(--muted);font-size:12px;margin:8px 0 0">Skriv ut i størrelse 100 % (ikke «tilpass til side») på A4. Telt-kort brettes langs den stiplede streken.</p>`);
   let fr = null, html = '';
   const read = () => { o.cards = $('#cNames', m).checked; o.tabcards = $('#cTables', m).checked; o.tent = $('#cTent', m).value === '1'; o.full = $('#cFull', m).value === '1'; o.tableName = $('#cTn', m).checked; o.color = $('#cCol', m).checked; o.listOnTable = $('#cNon', m).checked; o.unplaced = $('#cUn', m).checked; };
   const draw = () => {
@@ -2618,8 +2614,8 @@ function cardsExport() {
 
 function exportGuests() {
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const h = ['navn', 'antall', 'gruppe', 'svar', 'bord', 'notat'];
-  const rows = guests.map(g => [g.navn, g.antall, (grp(g.gruppe_id) || {}).navn || '', GST[g.status].n, (tables.find(t => t.id === g.bord_id) || {}).navn || '', g.notat]);
+  const h = ['navn', 'gruppe', 'svar', 'bord', 'notat'];
+  const rows = guests.map(g => [g.navn, (grp(g.gruppe_id) || {}).navn || '', GST[g.status].n, (tables.find(t => t.id === g.bord_id) || {}).navn || '', g.notat]);
   const text = '\ufeff' + [h.join(';'), ...rows.map(r => r.map(q).join(';'))].join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = 'gjesteliste.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
