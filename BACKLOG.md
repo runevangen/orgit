@@ -4,7 +4,6 @@ Idéer fra research på andre planleggingsapper (Zola, Joy, WeddingWire, RSVPify
 
 ## Neste opp
 
-- [ ] **Følge og husstander.** Barn og voksne telles hver for seg. Husstand kan sitte samlet på bordplanen.
 - [ ] **Budsjett og leverandører.** Estimert og faktisk beløp, depositum og betalingsfrister per tavle.
 - [ ] **Tidslinje for dagen.** Program med klokkeslett og ansvarlig person, kan skrives ut.
 - [ ] **Sorter oppgavekort.** Frist, prioritet eller navn per kolonne i tavlen.
