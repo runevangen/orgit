@@ -226,6 +226,10 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 @media (max-width:600px){.col,.newcol{width:100%}#board{padding:12px 16px;gap:32px;scroll-padding:0 16px}header{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}}
 #dots{display:flex;gap:8px;padding:8px 12px 10px;min-height:12px;overflow-x:auto;flex:none;background:var(--surface);border-top:1px solid var(--line);scrollbar-width:none}
 #dots::-webkit-scrollbar{display:none}
+.prow{display:flex;gap:12px;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:10px;padding:10px 12px;margin-bottom:8px;font:inherit;cursor:pointer}
+.ptid{flex:0 0 58px;font-weight:700;font-variant-numeric:tabular-nums}.ptid small{display:block;font-weight:400;color:var(--muted,#667085)}
+.pbody{display:flex;flex-direction:column;gap:2px;min-width:0}.pbody small{color:var(--muted,#667085)}.pnot{white-space:pre-wrap}
+.gprog{padding:8px 12px 90px;max-width:720px}
 .mc.ghost{opacity:.4}
 .mc.chosen{box-shadow:0 6px 16px rgba(16,24,40,.25)}
 .mc{position:relative;flex:1 0 74px;min-width:0;text-align:left;border:2px solid var(--line);border-top:4px solid var(--mc,var(--line));background:var(--bg);color:var(--text);border-radius:10px;padding:5px 7px 7px;font:inherit;cursor:pointer;overflow:hidden}
@@ -572,7 +576,7 @@ let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
 let pending = [], gAddOpen = false, gFilOpen = false, gUq = '', gUg = '', gUs = '';
 let topStyle = (function () { try { return localStorage.getItem('oppg_topstyle') || 'A'; } catch (e) { return 'A'; } })();
 document.documentElement.dataset.ts = topStyle;
-let gSort = (function () { try { return localStorage.getItem('oppg_gsort') || 'navn'; } catch (e) { return 'navn'; } })(), authMode = false, authUid = null, elements = [], gScale = (window.innerWidth >= 1000 ? 1.3 : 1), relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
+let gSort = (function () { try { return localStorage.getItem('oppg_gsort') || 'navn'; } catch (e) { return 'navn'; } })(), authMode = false, authUid = null, elements = [], gScale = (window.innerWidth >= 1000 ? 1.3 : 1), relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], program = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -770,7 +774,7 @@ async function createBoard(navn, silent) {
 }
 async function loadBoard() {
   if (!boardId) return;
-  const [c, k, g, t, gr, ty, rl, el] = await Promise.all([
+  const [c, k, g, t, gr, ty, rl, el, pg] = await Promise.all([
     sb.from('oppg_kolonner').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_kort').select('*').eq('tavle_id', boardId).order('posisjon'),
     sb.from('oppg_gjester').select('*').eq('tavle_id', boardId).order('opprettet'),
@@ -778,10 +782,11 @@ async function loadBoard() {
     sb.from('oppg_grupper').select('*').eq('tavle_id', boardId).order('opprettet'),
     sb.from('oppg_bordtyper').select('*').eq('tavle_id', boardId).order('plasser').order('opprettet'),
     sb.from('oppg_relasjoner').select('*').eq('tavle_id', boardId),
-    sb.from('oppg_elementer').select('*').eq('tavle_id', boardId).order('opprettet')
+    sb.from('oppg_elementer').select('*').eq('tavle_id', boardId).order('opprettet'),
+    sb.from('oppg_program').select('*').eq('tavle_id', boardId)
   ]);
   if (fail(c.error) || fail(k.error)) return;
-  if (!g.error) { const allG = g.data || []; guests = allG.filter(x => x.godkjent !== false); pending = allG.filter(x => x.godkjent === false); allG.forEach(x => { x.antall = 1; }); } if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || []; if (!el.error) elements = el.data || [];
+  if (!g.error) { const allG = g.data || []; guests = allG.filter(x => x.godkjent !== false); pending = allG.filter(x => x.godkjent === false); allG.forEach(x => { x.antall = 1; }); } if (!t.error) tables = t.data || []; if (!gr.error) groups = gr.data || []; if (!ty.error) tableTypes = ty.data || []; if (!rl.error) relations = rl.data || []; if (!el.error) elements = el.data || []; if (!pg.error) program = pg.data || [];
   const allCols = c.data || []; cols = allCols.filter(x => !x.arkivert); archCols = allCols.filter(x => x.arkivert); cards = k.data || [];
   if (authMode) await loadUsers();
   await loadActivity(); await loadFiles(); await signBoardImages();
@@ -800,7 +805,7 @@ function subscribe() {
   try {
     if (channel) sb.removeChannel(channel);
     channel = sb.channel('oppg-live');
-    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord', 'oppg_grupper', 'oppg_bordtyper', 'oppg_relasjoner', 'oppg_elementer'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
+    ['oppg_kort', 'oppg_kolonner', 'oppg_tavler', 'oppg_aktivitet', 'oppg_vedlegg', 'oppg_gjester', 'oppg_bord', 'oppg_grupper', 'oppg_bordtyper', 'oppg_relasjoner', 'oppg_elementer', 'oppg_program'].forEach(t => channel.on('postgres_changes', { event: '*', schema: 'public', table: t }, scheduleLoad));
     channel.subscribe();
   } catch (e) { console.warn('Sanntid ikke tilgjengelig her – oppdater siden for å se andres endringer', e); }
 }
@@ -1394,6 +1399,7 @@ function moreMenuItems() {
     { head: 'Planlegg' },
     ...(gTab === 'bord' ? [{ label: '＋ Nytt bord', fn: addTable }, { label: '🪑 Bordtyper', sub: `${tableTypes.length} ${tableTypes.length === 1 ? 'type' : 'typer'}`, fn: manageTypes }] : []),
     { label: '👥 Grupper', sub: `${groups.length} ${groups.length === 1 ? 'gruppe' : 'grupper'}`, fn: manageGroups },
+    { label: '🕒 Program for dagen', sub: program.length ? `${program.length} ${program.length === 1 ? 'punkt' : 'punkter'}` : 'tidslinje med ansvarlige', fn: () => { gTab = 'program'; renderGuests(); updateNav(); } },
     { label: '🍽 Matvalg og allergier', sub: i.allergi ? `${i.allergi} med allergi` : 'ingen allergier oppgitt', fn: showFood },
     { head: 'Skriv ut' },
     { label: '🖨 Navnekort og bordkort', fn: cardsExport },
@@ -1426,6 +1432,8 @@ function renderGuests() {
     body = oversiktHtml();
   } else if (gTab === 'kart') {
     body = kartHtml();
+  } else if (gTab === 'program') {
+    body = programHtml();
   } else {
     const gname = g => (grp(g.gruppe_id) || { navn: '\uffff' }).navn;
     const hintOf = {};
@@ -1455,6 +1463,7 @@ function renderGuests() {
   el.querySelectorAll('[data-gst]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); const v = x.dataset.gst; gFilter = (!v || (gFilter === v && gTab === 'liste')) ? '' : v; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtag]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); if (dragging || Date.now() - lastDrop < 400) return; const id = x.dataset.gtag; gGrp = (gGrp === id && gTab === 'liste') ? '' : id; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
+  if (gTab === 'program') bindProgram(el);
   if (gTab === 'liste') {
     $('#gAddBtn', el).onclick = () => { gAddOpen = !gAddOpen; $('#gAddForm', el).classList.toggle('hidden', !gAddOpen); if (gAddOpen) $('#gNavn', el).focus(); };
     $('#gFilBtn', el).onclick = () => { gFilOpen = !gFilOpen; $('.gfil', el).classList.toggle('hidden', !gFilOpen); };
@@ -1469,6 +1478,8 @@ function renderGuests() {
     const gc = $('#gGuessCard', el); if (gc) gc.onclick = openGuess;
   } else if (gTab === 'kart') {
     bindKart(el);
+  } else if (gTab === 'program') {
+    /* bundet i bindProgram */
   } else {
     { const q = $('#gUq', el); if (q) {
       q.oninput = e => { gUq = e.target.value.trim(); const pos = e.target.selectionStart; renderGuests(); const n = $('#gUq'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {} } };
@@ -2614,6 +2625,61 @@ function cardsExport() {
   draw();
 }
 
+/* ---------- Program for dagen ---------- */
+const progSorted = () => program.slice().sort((a, b) => String(a.tid).localeCompare(String(b.tid)) || String(a.opprettet).localeCompare(String(b.opprettet)));
+const progEnd = p => { const m = /^(\d{1,2}):(\d{2})/.exec(p.tid || ''); if (!m || !p.varighet) return ''; const t = (+m[1] * 60 + +m[2] + p.varighet) % 1440; return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+function programHtml() {
+  const list = progSorted();
+  const rows = list.map(p => `<button type="button" class="prow" data-pid="${p.id}"><span class="ptid">${esc(p.tid)}${progEnd(p) ? `<small>–${progEnd(p)}</small>` : ''}</span><span class="pbody"><b>${esc(p.tittel)}</b>${p.ansvarlig ? `<small>👤 ${esc(p.ansvarlig)}</small>` : ''}${p.notat ? `<small class="pnot">${esc(p.notat)}</small>` : ''}</span></button>`).join('');
+  return `<div class="gprog"><div class="gsearch"><b style="flex:1;font-size:16px">🕒 Program for dagen</b><button type="button" class="btn" id="pPrint"${list.length ? '' : ' disabled'}>🖨 Skriv ut</button><button type="button" class="btn primary" id="pAdd">+ Punkt</button></div>
+    ${list.length ? `<div class="plist">${rows}</div>` : '<p class="gempty">Ingen punkter ennå. Trykk «+ Punkt» for å legge inn klokkeslett, hva som skjer og hvem som har ansvar.</p>'}</div>`;
+}
+function bindProgram(el) {
+  $('#pAdd', el).onclick = () => editProgram(null);
+  $('#pPrint', el).onclick = printProgram;
+  el.querySelectorAll('[data-pid]').forEach(b => b.onclick = () => editProgram(b.dataset.pid));
+}
+function editProgram(id) {
+  const p = id ? program.find(x => x.id === id) : null;
+  const last = progSorted().slice(-1)[0];
+  const names = [...new Set([...(users || []).map(u => u.navn), ...program.map(x => x.ansvarlig)].filter(Boolean))];
+  const m = showModal(`<h2>${p ? 'Rediger punkt' : 'Nytt punkt'}</h2>
+    <div class="two"><div class="field"><label for="pTid">Klokkeslett</label><input id="pTid" type="time" value="${esc(p ? p.tid : (last ? (progEnd(last) || last.tid) : '12:00'))}"></div>
+    <div class="field"><label for="pVar">Varighet (min)</label><input id="pVar" type="number" min="0" max="1440" step="5" placeholder="valgfritt" value="${p && p.varighet ? p.varighet : ''}"></div></div>
+    <div class="field"><label for="pTit">Hva skjer?</label><input id="pTit" maxlength="120" placeholder="F.eks. Velkomsttale" value="${esc(p ? p.tittel : '')}"></div>
+    <div class="field"><label for="pAns">Ansvarlig</label><input id="pAns" list="pNames" maxlength="80" placeholder="Hvem tar seg av det?" value="${esc(p ? p.ansvarlig || '' : '')}"><datalist id="pNames">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+    <div class="field"><label for="pNot">Notat</label><textarea id="pNot" rows="2" maxlength="500" placeholder="Valgfritt">${esc(p ? p.notat || '' : '')}</textarea></div>
+    <div class="row">${p ? '<button class="btn danger" id="pDel" type="button">Slett</button>' : ''}<span style="flex:1"></span><button class="btn" id="pCancel" type="button">Avbryt</button><button class="btn primary" id="pSave" type="button">Lagre</button></div>`);
+  $('#pCancel', m).onclick = closeModal;
+  if (!p) $('#pTit', m).focus();
+  if (p) $('#pDel', m).onclick = async () => {
+    if (!confirm('Slette «' + p.tittel + '»?')) return;
+    const { error } = await sb.from('oppg_program').delete().eq('id', p.id); if (fail(error)) return;
+    program = program.filter(x => x.id !== p.id); closeModal(); renderGuests();
+  };
+  $('#pSave', m).onclick = async () => {
+    const tittel = $('#pTit', m).value.trim(), tid = $('#pTid', m).value;
+    if (!tittel) { $('#pTit', m).focus(); return toast('Skriv hva som skjer'); }
+    if (!tid) return toast('Velg klokkeslett');
+    const v = parseInt($('#pVar', m).value, 10);
+    const row = { tid, tittel, varighet: v > 0 ? v : null, ansvarlig: $('#pAns', m).value.trim() || null, notat: $('#pNot', m).value.trim() || null };
+    if (p) {
+      const { error } = await sb.from('oppg_program').update(row).eq('id', p.id); if (fail(error)) return;
+      Object.assign(p, row);
+    } else {
+      const { data, error } = await sb.from('oppg_program').insert({ ...row, tavle_id: boardId }).select().single(); if (fail(error)) return;
+      program.push(data);
+    }
+    closeModal(); renderGuests();
+  };
+}
+function printProgram() {
+  const b = boards.find(x => x.id === boardId);
+  const rows = progSorted().map(p => `<tr><td class="t">${esc(p.tid)}${progEnd(p) ? '–' + progEnd(p) : ''}</td><td><b>${esc(p.tittel)}</b>${p.notat ? `<div class="n">${esc(p.notat)}</div>` : ''}</td><td>${esc(p.ansvarlig || '')}</td></tr>`).join('');
+  const w = window.open('', '_blank'); if (!w) return toast('Tillat popup-vinduer for å skrive ut');
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>Program</title><style>body{font:15px/1.4 system-ui,sans-serif;margin:24px;color:#111}h1{font-size:22px;margin:0 0 14px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ccc;padding:8px 10px;text-align:left;vertical-align:top}th{font-size:12px;text-transform:uppercase;color:#555}.t{white-space:nowrap;font-weight:700;width:1%}.n{color:#555;font-size:13px}</style><h1>Program – ${esc(b ? b.navn : '')}</h1><table><tr><th>Tid</th><th>Hva</th><th>Ansvarlig</th></tr>${rows}</table>`);
+  w.document.close(); w.focus(); setTimeout(() => w.print(), 250);
+}
 function exportGuests() {
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
   const h = ['navn', 'gruppe', 'svar', 'bord', 'notat'];
