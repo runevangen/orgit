@@ -5,7 +5,6 @@ Idéer fra research på andre planleggingsapper (Zola, Joy, WeddingWire, RSVPify
 ## Neste opp
 
 - [ ] **Budsjett og leverandører.** Estimert og faktisk beløp, depositum og betalingsfrister per tavle.
-- [ ] **Tidslinje for dagen.** Program med klokkeslett og ansvarlig person, kan skrives ut.
 - [ ] **Sorter oppgavekort.** Frist, prioritet eller navn per kolonne i tavlen.
 
 ## Senere
@@ -26,6 +25,8 @@ Idéer fra research på andre planleggingsapper (Zola, Joy, WeddingWire, RSVPify
 - [ ] E-postinnlogging for sportsbibelen (bruksanvisning er flyttet dit manuelt).
 
 ## Ferdig (nylig)
+
+- [x] Program for dagen (tidslinje med ansvarlig og utskrift), flytting av kolonner via minikort
 
 - [x] Deling via Messenger, WhatsApp og SMS, markering av sendt invitasjon, faste plasser ved bord, felles lenke til gruppechat
 
