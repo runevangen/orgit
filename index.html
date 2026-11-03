@@ -402,20 +402,7 @@ header,.ghead{box-sizing:border-box;flex:none;height:calc(56px + env(safe-area-i
 .ghead .btn.icon{min-width:44px}
 .ghead #gSearchBtn{margin-left:auto}
 @media (max-width:520px){.ghead h2{display:none}}
-.chipsbar{display:none;flex:none;gap:8px;overflow-x:auto;align-items:center;box-sizing:border-box;height:48px;padding:0 12px;background:var(--surface);border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.chipsbar::-webkit-scrollbar{display:none}
-html[data-ts=C] .chipsbar{display:flex}
-.chip2{flex:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:999px;padding:6px 13px;font:inherit;font-size:14px;cursor:pointer}
-.chip2 i{width:10px;height:10px;border-radius:50%;display:inline-block}
-.chip2.on{background:var(--accent);border-color:var(--accent);color:#fff}
-html[data-ts=C] #mineBtn{display:none}
-html[data-ts=C] .gsum.gline{display:none}
 .navb.sub{display:none}
-html[data-ts=B] .navb.sub,html[data-ts=C] .navb.sub{display:flex}
-html[data-ts=B] #navGuests,html[data-ts=C] #navGuests{display:none}
-html[data-ts=B] .navb .nl,html[data-ts=C] .navb .nl{font-size:11px}
-html[data-ts=B] #mainnav,html[data-ts=C] #mainnav{gap:2px}
-html[data-ts=B] .navb,html[data-ts=C] .navb{padding-left:0;padding-right:0}
 #mainnav{display:none}
 #app:not(.hidden) ~ #mainnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;gap:8px;background:var(--surface);border-top:1px solid var(--line);padding:6px 12px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -4px 14px rgba(16,24,40,.06)}
 .navb{flex:1;position:relative;background:none;border:0;border-radius:14px;padding:6px 4px 5px;display:flex;flex-direction:column;align-items:center;gap:1px;font:inherit;color:var(--muted);cursor:pointer;min-height:52px}
@@ -428,7 +415,6 @@ html[data-ts=B] .navb,html[data-ts=C] .navb{padding-left:0;padding-right:0}
   #app:not(.hidden) ~ #mainnav{left:50%;right:auto;transform:translateX(-50%);width:340px;bottom:12px;border:1px solid var(--line);border-radius:20px;padding:6px 8px;box-shadow:0 10px 30px rgba(16,24,40,.18)}
   #app:not(.hidden){padding-bottom:84px}
   #app:not(.hidden) ~ #guests{bottom:84px}
-  html[data-ts=B] #app:not(.hidden) ~ #mainnav,html[data-ts=C] #app:not(.hidden) ~ #mainnav{width:480px}
 }
 #guestBtn{position:relative}
 #guestBtn[data-n]:not([data-n=""])::after{content:attr(data-n);position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 4px}
@@ -532,7 +518,6 @@ html[data-ts=B] .navb,html[data-ts=C] .navb{padding-left:0;padding-right:0}
     <button id="meBtn" class="btn icon" title="Meg"></button>
     <button id="logoutBtn" class="btn icon" title="Logg ut" aria-label="Logg ut">⎋</button>
   </header>
-  <div id="chipsbar" class="chipsbar"></div>
   <div id="searchBar" class="searchbar hidden">
     <div class="srow"><input id="searchIn" type="search" placeholder="Søk i tittel, beskrivelse og sjekkliste …" autocomplete="off"><button id="searchClear" class="btn">Lukk</button></div>
     <div class="filters">
@@ -574,8 +559,6 @@ const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
 let pending = [], gAddOpen = false, gFilOpen = false, gUq = '', gUg = '', gUs = '';
-let topStyle = (function () { try { return localStorage.getItem('oppg_topstyle') || 'A'; } catch (e) { return 'A'; } })();
-document.documentElement.dataset.ts = topStyle;
 let gSort = (function () { try { return localStorage.getItem('oppg_gsort') || 'navn'; } catch (e) { return 'navn'; } })(), authMode = false, authUid = null, elements = [], gScale = (window.innerWidth >= 1000 ? 1.3 : 1), relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], program = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -928,7 +911,7 @@ function matches(c, isLast, today) {
 
 /* ---------- Visning ---------- */
 function render() {
-  updateNav(); renderChips();
+  updateNav();
   const b = boards.find(x => x.id === boardId);
   $('#boardBtn').textContent = (b ? b.navn : 'Tavle') + ' ▾';
   $('#mineBtn').classList.toggle('on', onlyMine);
@@ -1232,26 +1215,6 @@ const grp = id => groups.find(x => x.id === id);
 const gTag = g => { const x = grp(g.gruppe_id); return x ? `<span class="gtag" data-gtag="${x.id}" title="Vis gruppen ${esc(x.navn)}" style="background:${esc(x.farge)}">${esc(x.navn)}</span>` : ''; };
 const seatsUsed = tid => guests.filter(g => g.bord_id === tid && g.status !== 'kommer_ikke').reduce((n, g) => n + g.antall, 0);
 const sumBy = st => guests.filter(g => g.status === st).length;
-function applyTopStyle() { document.documentElement.dataset.ts = topStyle; updateNav(); renderChips(); if (guestsOpen) renderGuests(); }
-function setTopStyle(v) { topStyle = v; try { localStorage.setItem('oppg_topstyle', v); } catch (e) {} applyTopStyle(); toast('Toppmeny ' + v); }
-function topStyleMenu() {
-  sheet('Toppmeny: velg stil (test)', [
-    { label: 'A · Ikonknapper i topplinjen + faner under', cur: topStyle === 'A', fn: () => setTopStyle('A') },
-    { label: 'B · Faner i bunnmenyen, lik topplinje', cur: topStyle === 'B', fn: () => setTopStyle('B') },
-    { label: 'C · Bunnmeny + filterchips under topplinjen', cur: topStyle === 'C', fn: () => setTopStyle('C') }
-  ]);
-}
-function renderChips() {
-  const bar = $('#chipsbar'); if (!bar) return;
-  if (topStyle !== 'C') { bar.innerHTML = ''; return; }
-  const chip = (k, t, on) => `<button type="button" class="chip2 ${on ? 'on' : ''}" data-oc="${k}">${t}</button>`;
-  bar.innerHTML = chip('mine', '👤 Mine', onlyMine) + chip('over', '⏰ Forfalt', fDue === 'over') + chip('uke', '📅 Neste 7 dager', fDue === 'uke') + chip('hoy', '▲ Høy prioritet', fPrio === '3') + (onlyMine || fDue || fPrio ? chip('nullstill', '✕ Nullstill', false) : '');
-  bar.querySelectorAll('[data-oc]').forEach(b => b.onclick = () => {
-    const k = b.dataset.oc;
-    if (k === 'mine') onlyMine = !onlyMine; else if (k === 'over') fDue = fDue === 'over' ? '' : 'over'; else if (k === 'uke') fDue = fDue === 'uke' ? '' : 'uke'; else if (k === 'hoy') fPrio = fPrio === '3' ? '' : '3'; else { onlyMine = false; fDue = ''; fPrio = ''; }
-    $('#fDue').value = fDue; $('#fPrio').value = fPrio; render();
-  });
-}
 function updateNav() {
   const t = $('#navTasks'), g = $('#navGuests'); if (!t || !g) return;
   t.classList.toggle('on', !guestsOpen); g.classList.toggle('on', guestsOpen);
@@ -1451,15 +1414,13 @@ function renderGuests() {
       <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
         <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
   }
-  const ts = topStyle, tabsHtml = `<div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'oversikt' ? 'on' : ''}" data-gtab="oversikt">Oversikt</button><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bord</button><button class="btn ${gTab === 'kart' ? 'on' : ''}" data-gtab="kart">Relasjoner</button></div></div>`;
-  const chipsG = ts === 'C' ? `<div class="chipsbar gchips">${['kommer', 'kanskje', 'venter', 'kommer_ikke'].map(k => `<button type="button" class="chip2 ${gFilter === k ? 'on' : ''}" data-gst="${k}"><i style="background:${GST[k].c}"></i>${GST[k].n} ${sumBy(k)}</button>`).join('')}<button type="button" class="chip2 ${gFilter === 'ikkeinv' ? 'on' : ''}" data-gst="ikkeinv">✉ Ikke invitert ${guests.filter(g => !g.invitert_tid).length}</button></div>` : '';
-  el.innerHTML = `<div class="ghead"><h2>Gjester</h2><button class="btn icon" id="gSearchBtn" title="Søk i gjestelisten" aria-label="Søk">🔍</button><button class="btn primary icon" id="gPlusBtn" title="Ny gjest" aria-label="Ny gjest">＋</button>${ts === 'A' ? `<button class="btn" id="gInviteBtn" type="button" aria-label="Inviter" ${menuInfo().dot ? 'data-dot="1"' : ''}>✉ Inviter ▾</button>` : ''}<button class="btn" id="gMoreBtn" type="button" aria-label="Mer" ${ts !== 'A' && menuInfo().dot ? 'data-dot="1"' : ''}>⋯ ▾</button><button class="btn icon" id="gMeBtn" title="Meg">${avatar(me, 30)}</button></div>
-    ${ts === 'A' ? tabsHtml : ''}${chipsG}<div class="gbody">${body}</div>`;
+  const tabsHtml = `<div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'oversikt' ? 'on' : ''}" data-gtab="oversikt">Oversikt</button><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bord</button><button class="btn ${gTab === 'kart' ? 'on' : ''}" data-gtab="kart">Relasjoner</button></div></div>`;
+  el.innerHTML = `<div class="ghead"><h2>Gjester</h2><button class="btn icon" id="gSearchBtn" title="Søk i gjestelisten" aria-label="Søk">🔍</button><button class="btn primary icon" id="gPlusBtn" title="Ny gjest" aria-label="Ny gjest">＋</button><button class="btn" id="gInviteBtn" type="button" aria-label="Inviter" ${menuInfo().dot ? 'data-dot="1"' : ''}>✉ Inviter ▾</button><button class="btn" id="gMoreBtn" type="button" aria-label="Mer">⋯ ▾</button><button class="btn icon" id="gMeBtn" title="Meg">${avatar(me, 30)}</button></div>
+    ${tabsHtml}<div class="gbody">${body}</div>`;
   $('#gMeBtn', el).onclick = meMenu;
   $('#gSearchBtn', el).onclick = () => { gTab = 'liste'; renderGuests(); setTimeout(() => { const q = $('#gQ'); if (q) q.focus(); }, 0); };
   $('#gPlusBtn', el).onclick = () => { gTab = 'liste'; gAddOpen = true; renderGuests(); setTimeout(() => { const q = $('#gNavn'); if (q) q.focus(); }, 0); };
-  if ($('#gInviteBtn', el)) { $('#gInviteBtn', el).onclick = e => dropMenu(e.currentTarget, inviteMenuItems(false)); $('#gMoreBtn', el).onclick = e => dropMenu(e.currentTarget, moreMenuItems()); }
-  else $('#gMoreBtn', el).onclick = e => dropMenu(e.currentTarget, [...inviteMenuItems(true), ...moreMenuItems()]);
+  $('#gInviteBtn', el).onclick = e => dropMenu(e.currentTarget, inviteMenuItems(false)); $('#gMoreBtn', el).onclick = e => dropMenu(e.currentTarget, moreMenuItems());
   el.querySelectorAll('[data-gst]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); const v = x.dataset.gst; gFilter = (!v || (gFilter === v && gTab === 'liste')) ? '' : v; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtag]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); if (dragging || Date.now() - lastDrop < 400) return; const id = x.dataset.gtag; gGrp = (gGrp === id && gTab === 'liste') ? '' : id; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
@@ -2780,7 +2741,6 @@ function meMenu() {
   sheet(me.navn + (me.epost ? ' · ' + me.epost : ''), [
     ...(authMode ? [{ label: '👥 Medlemmer og invitasjoner', fn: showMembers }] : []),
     { label: '❓ Guide og hjelp', fn: guideMenu },
-    { label: '🎛 Toppmeny (test): ' + topStyle, fn: topStyleMenu },
     { label: 'Arkiv', fn: showArchive },
     { label: 'Aktivitet', fn: showActivity },
     { label: 'Eksporter tavle (JSON)', fn: () => exportBoard('json') },
