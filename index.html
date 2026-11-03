@@ -224,7 +224,16 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .gview .btn{font-size:13px;padding:6px 6px}
 /* Skjermlås og kolonneindikator */
 @media (max-width:600px){.col,.newcol{width:100%}#board{padding:12px 16px;gap:32px;scroll-padding:0 16px}header{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}}
-#dots{display:flex;justify-content:center;gap:8px;padding:6px 0 calc(10px + env(safe-area-inset-bottom));min-height:12px}
+#dots{display:flex;gap:8px;padding:8px 12px 10px;min-height:12px;overflow-x:auto;flex:none;background:var(--surface);border-top:1px solid var(--line);scrollbar-width:none}
+#dots::-webkit-scrollbar{display:none}
+.mc{flex:1 0 74px;min-width:0;text-align:left;border:2px solid var(--line);background:var(--bg);color:var(--text);border-radius:10px;padding:6px 7px 7px;font:inherit;cursor:pointer}
+.mc.on{border-color:var(--accent);background:rgba(79,124,255,.10)}
+.mct{display:block;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px}
+.mcb{display:flex;flex-direction:column;gap:2px;min-height:33px}
+.mcb i{display:block;height:5px;border-radius:2px;background:#c9ced8}
+.mc.on .mcb i{background:#9fb3ea}
+.mcn{display:block;font-size:11px;color:var(--muted);margin-top:4px}
+.mcadd{flex:0 0 38px;display:grid;place-items:center;border-style:dashed;color:var(--muted);font-size:20px;padding:0}
 #dots:empty{display:none}
 .dot{width:8px;height:8px;border-radius:4px;background:var(--line);border:0;padding:0;transition:width .2s,background .2s}
 .dot.on{background:var(--accent);width:20px}
@@ -930,7 +939,7 @@ function render() {
   }).join('') + `<div class="newcol"><button id="newColBtn">+ Ny kolonne</button></div>`;
   $('#board').innerHTML = html;
   $('#board').scrollTo({ left: scroll, behavior: 'instant' });
-  $('#dots').innerHTML = cols.length > 1 ? cols.map((c, i) => `<button class="dot" data-dot="${i}" aria-label="${esc(c.tittel)}"></button>`).join('') : '';
+  $('#dots').innerHTML = cols.length > 1 ? cols.map((c, i) => { const n = cards.filter(k => k.kolonne_id === c.id && !k.arkivert).length; return `<button class="mc" data-dot="${i}" aria-label="${esc(c.tittel)}, ${n} kort"><span class="mct">${esc(c.tittel)}</span><span class="mcb">${Array.from({ length: Math.min(n, 5) }, () => '<i></i>').join('')}</span><span class="mcn">${n} kort</span></button>`; }).join('') + '<button class="mc mcadd" id="mcAdd" aria-label="Ny kolonne">＋</button>' : '';
   updateDots();
   document.querySelectorAll('.cards').forEach(el => { el.scrollTop = vscroll[el.dataset.col] || 0; });
   document.querySelectorAll('.cards').forEach(el => new Sortable(el, {
@@ -946,7 +955,8 @@ function render() {
 function updateDots() {
   const b = $('#board'), list = [...b.querySelectorAll('.col')]; if (!list.length) return;
   let best = 0, bd = Infinity; list.forEach((el, i) => { const d = Math.abs(el.offsetLeft - parseFloat(getComputedStyle(b).paddingLeft) - b.scrollLeft); if (d < bd) { bd = d; best = i; } });
-  document.querySelectorAll('#dots .dot').forEach((d, i) => d.classList.toggle('on', i === best));
+  document.querySelectorAll('#dots .mc[data-dot]').forEach((d, i) => d.classList.toggle('on', i === best));
+  if (best !== updateDots.last) { updateDots.last = best; const on = document.querySelector('#dots .mc.on'), bar = $('#dots'); if (on && bar && bar.scrollWidth > bar.clientWidth) bar.scrollTo({ left: on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2, behavior: 'smooth' }); }
 }
 function cardHtml(c, isLast, today) {
   const lbl = LABELS.find(l => l.k === c.etikett);
@@ -1905,7 +1915,7 @@ const TOUR_BOARD = [
   { sel: '[data-colmenu]', title: 'Kolonnemeny', text: 'Gi kolonnen farge, sett en grense for antall kort, sorter etter prioritet, flytt eller arkiver den.' },
   { sel: '[data-addopen]', title: 'Legg til kort', text: 'Trykk, skriv en tittel og trykk Legg til.' },
   { sel: '.card', title: 'Kortene', text: 'Trykk på et kort for ansvarlig, frist, etikett, prioritet, sjekkliste, bilder og kommentarer. Hold inne og dra for å flytte det mellom kolonner.' },
-  { sel: '#dots .dot', title: 'Kolonneprikker', text: 'På mobil ser du én kolonne om gangen. Prikkene viser hvor du er, og du kan trykke på dem for å hoppe.' }
+  { sel: '#dots .mc', title: 'Kolonneoversikt', text: 'På mobil ser du én kolonne om gangen. Her nederst ser du alle kolonnene med antall kort. Den du står på er markert, og du kan trykke på en for å hoppe dit.' }
 ];
 const toGuests = () => { openGuests(); gTab = 'liste'; renderGuests(); };
 const toTables = v => () => { openGuests(); gTab = 'bord'; gView = v || 'plan'; renderGuests(); };
@@ -2709,7 +2719,7 @@ document.addEventListener('click', e => {
   if (t.closest('#newColBtn')) return addColumn();
 });
 $('#board').addEventListener('scroll', updateDots, { passive: true });
-$('#dots').onclick = e => { const d = e.target.closest('[data-dot]'); if (!d) return; const col = $$('.col', $('#board'))[+d.dataset.dot]; if (col) $('#board').scrollTo({ left: col.offsetLeft - parseFloat(getComputedStyle($('#board')).paddingLeft), behavior: 'smooth' }); };
+$('#dots').onclick = e => { if (e.target.closest('#mcAdd')) return addColumn(); const d = e.target.closest('[data-dot]'); if (!d) return; const col = $$('.col', $('#board'))[+d.dataset.dot]; if (col) $('#board').scrollTo({ left: col.offsetLeft - parseFloat(getComputedStyle($('#board')).paddingLeft), behavior: 'smooth' }); };
 $('#boardBtn').onclick = boardMenu;
 $('#meBtn').onclick = meMenu;
 $('#guestBtn').onclick = () => { gTab = 'oversikt'; openGuests(); };
