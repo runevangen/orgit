@@ -171,7 +171,11 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .grw{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:8px;padding:8px 10px;margin-bottom:6px;box-shadow:var(--shadow)}
 .grw .gname{flex:1;min-width:0;word-break:break-word;cursor:pointer}
 .gname small{color:var(--muted);margin-left:4px}
-.gfab{position:fixed;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:60;background:var(--accent);color:var(--accent-text,#fff);border:0;border-radius:999px;padding:13px 20px;font:inherit;font-weight:700;box-shadow:0 6px 18px rgba(16,24,40,.3);cursor:pointer}
+.gfab{opacity:.6;transition:opacity .2s;backdrop-filter:blur(3px);position:fixed;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:60;background:var(--accent);color:var(--accent-text,#fff);border:0;border-radius:999px;padding:13px 20px;font:inherit;font-weight:700;box-shadow:0 6px 18px rgba(16,24,40,.3);cursor:pointer}
+.gfab:active,.gfab:focus-visible{opacity:1}
+.gfab.pulse{animation:gfabPulse 1.1s ease-in-out 3}
+@keyframes gfabPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.12);box-shadow:0 0 0 10px rgba(79,124,255,.22),0 6px 18px rgba(16,24,40,.3)}}
+@media (prefers-reduced-motion:reduce){.gfab.pulse{animation:none;opacity:1}}
 .invact{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
 .invact button{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:12px;padding:11px 10px;font:inherit;font-size:14px;text-align:left;cursor:pointer}
 .invact button small{display:block;color:var(--muted,#667085);font-size:12px}.invact button.warn{border-color:#f79009}
@@ -1259,6 +1263,15 @@ function similarGuests(p) {
     else if (at[0] === bt[0] && at[0].length > 2) sc = 30;
     if (sc && g.status === 'venter') sc += 5; return { g, sc }; }).filter(x => x.sc >= 30).sort((x, y) => y.sc - x.sc).slice(0, 3).map(x => x.g);
 }
+let fabTimer = null;
+function armFabPulse() {
+  clearTimeout(fabTimer);
+  const f = document.getElementById('gFab'); if (f) f.classList.remove('pulse');
+  if (!f || !guestsOpen) return;
+  fabTimer = setTimeout(() => { const b = document.getElementById('gFab'); if (!b || !guestsOpen) return; b.classList.add('pulse'); fabTimer = setTimeout(armFabPulse, 3600); }, 10000);
+}
+['pointerdown', 'keydown', 'wheel'].forEach(ev => document.addEventListener(ev, () => armFabPulse(), { passive: true, capture: true }));
+document.addEventListener('scroll', () => armFabPulse(), { passive: true, capture: true });
 function merHtml() {
   const items = moreMenuItems().filter(x => !/Guide og hjelp/.test(x.label || ''));
   window.__merItems = items.filter(x => !x.head);
@@ -1457,6 +1470,7 @@ function renderGuests() {
     else if (gTab === 'program') editProgram(null);
   };
   if (gTab === 'mer') bindMer(el);
+  armFabPulse();
   el.querySelectorAll('[data-gst]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); const v = x.dataset.gst; gFilter = (!v || (gFilter === v && gTab === 'liste')) ? '' : v; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtag]').forEach(x => x.addEventListener('click', e => { e.stopPropagation(); if (dragging || Date.now() - lastDrop < 400) return; const id = x.dataset.gtag; gGrp = (gGrp === id && gTab === 'liste') ? '' : id; gTab = 'liste'; renderGuests(); }, true));
   el.querySelectorAll('[data-gtab]').forEach(x => x.onclick = () => { gTab = x.dataset.gtab; renderGuests(); });
