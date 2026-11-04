@@ -193,7 +193,13 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .gth .cnt.over{color:var(--danger);font-weight:700}
 .gth button{border:0;background:transparent;font-size:18px;color:var(--muted);padding:2px 8px}
 .gseats{min-height:48px;display:flex;flex-direction:column;gap:6px}
-@media (max-width:999px){.gunp .gseats{max-height:34vh;overflow:auto}}
+@media (max-width:999px){.gunp .gseats{max-height:214px;overflow:auto}.gunp .gseats::after{content:'';position:sticky;bottom:0;display:block;height:28px;margin-top:-28px;background:linear-gradient(rgba(0,0,0,0),var(--col));pointer-events:none}}
+.gfold{margin-left:auto;border:0;background:none;color:var(--accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:4px 6px}
+.gmorehint{text-align:center;font-size:12px;color:var(--muted,#667085);padding:6px 0 2px}
+.gunp.gcollapsed .gunpf,.gunp.gcollapsed .gseats,.gunp.gcollapsed .gmorehint{display:none}
+.gunp.gcollapsed .gth{padding-bottom:2px}
+.gdown{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));z-index:59;border:0;border-radius:999px;padding:10px 18px;background:#1d2433;color:#fff;font:inherit;font-weight:600;box-shadow:0 6px 18px rgba(16,24,40,.35);cursor:pointer}
+.gdown.hidden{display:none}
 .gchip{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:8px;padding:6px 10px 6px 6px;border-left:5px solid var(--sc,var(--line));cursor:pointer;word-break:break-word;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .gav{width:34px;height:34px;border-radius:50%;object-fit:cover;flex:none;border:3px solid var(--sc,var(--line));display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;background:var(--muted)}
 .gav.sm{width:30px;height:30px;border-width:2px;font-size:12px}
@@ -570,7 +576,7 @@ const COLORS = ['#4f7cff','#e5484d','#f5871f','#12b76a','#7a5af8','#0ba5ec','#d4
 const STEP = 1000;
 
 let me = null, users = [], boards = [], boardId = null, cols = [], cards = [];
-let pending = [], gAddOpen = false, gFilOpen = false, gUq = '', gUg = '', gUs = '';
+let pending = [], gUnpOpen = true, gAddOpen = false, gFilOpen = false, gUq = '', gUg = '', gUs = '';
 let gSort = (function () { try { return localStorage.getItem('oppg_gsort') || 'navn'; } catch (e) { return 'navn'; } })(), authMode = false, authUid = null, elements = [], gScale = (window.innerWidth >= 1000 ? 1.3 : 1), relations = [], gConf = new Set(), tableTypes = [], gView = 'plan', guests = [], program = [], tables = [], groups = [], gGrp = '', gNewGrp = '',  guestsOpen = false, gTab = 'liste', gFilter = '', gQuery = '', query = '', fPrio = '', fLabel = '', fUser = '', fDue = '', activity = [], files = [], archCols = [], onlyMine = false, dragging = false, lastDrop = 0, openCardId = null, channel = null, loadTimer = null;
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -1432,16 +1438,16 @@ function renderGuests() {
     const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}${hintOf[g.id] ? `<small class="chint">💞 skal sitte med ${esc(hintOf[g.id].join(', '))}</small>` : ''}</div></div>`;
     const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Bord</button><button class="btn ${gView === 'floor' ? 'on' : ''}" data-gview="floor">Lokale</button></div>`;
     const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
-    body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unpF.length < unpAll.length ? `Viser ${unpF.length} av ${unpAll.length}` : unpAll.length + ' gjester'}</span></div>
+    body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp ${gUnpOpen ? '' : 'gcollapsed'}" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unpF.length < unpAll.length ? `Viser ${unpF.length} av ${unpAll.length}` : unpAll.length + ' gjester'}</span><button type="button" class="gfold" id="gUnpTog" aria-label="${gUnpOpen ? 'Skjul listen' : 'Vis listen'}">${gUnpOpen ? 'Skjul ▴' : 'Vis ▾'}</button></div>
       <div class="gunpf"><input id="gUq" type="search" placeholder="Søk blant de uplasserte …" value="${esc(gUq)}" class="${gUq ? 'fon' : ''}" autocomplete="off"><select id="gUg" aria-label="Gruppe" class="${gUg ? 'fon' : ''}"><option value="">Alle grupper</option><option value="none" ${gUg === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gUg === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select><select id="gUs" aria-label="Svar" class="${gUs ? 'fon' : ''}"><option value="">Alle svar</option>${['kommer', 'kanskje', 'venter'].map(k => `<option value="${k}" ${gUs === k ? 'selected' : ''}>${GST[k].n}</option>`).join('')}</select>${gUq || gUg || gUs ? '<button type="button" class="btn" id="gUclr">Fjern filter</button>' : ''}</div>
-      <div class="gseats" data-bord="">${unpF.map(chip).join('') || `<p class="gempty" style="margin:8px 4px">${unpAll.length ? 'Ingen treff blant de uplasserte.' : 'Alle er plassert 🎉'}</p>`}</div></div><div class="gbtns">${tables.length ? '' : '<div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button></div>'}
+      <div class="gseats" data-bord="">${unpF.map(chip).join('') || `<p class="gempty" style="margin:8px 4px">${unpAll.length ? 'Ingen treff blant de uplasserte.' : 'Alle er plassert 🎉'}</p>`}</div>${unpF.length > 4 ? `<div class="gmorehint">+ ${unpF.length - 4} til · rull i listen ↓</div>` : ''}</div><div class="gbtns">${tables.length ? '' : '<div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button></div>'}
       <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Bilde av bordplanen</button>
       <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : tables.map(planTable).join('')}</div></div></div>`;
   }
   const tabsHtml = `<div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'oversikt' ? 'on' : ''}" data-gtab="oversikt">Oversikt</button><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bord</button><button class="btn ${gTab === 'kart' ? 'on' : ''}" data-gtab="kart">Relasjoner</button></div></div>`;
   const fab = { liste: '+ Gjest', bord: '+ Bord', program: '+ Punkt' }[gTab];
   el.innerHTML = `<div class="ghead"><h2>Gjester</h2><button class="btn icon" id="gHelpBtn" title="Guide og hjelp" aria-label="Hjelp">?</button><button class="btn icon" id="gMeBtn" title="Meg">${avatar(me, 30)}</button></div>
-    ${gTab === 'mer' ? '' : tabsHtml}<div class="gbody">${body}</div>${fab ? `<button type="button" class="gfab" id="gFab">${fab}</button>` : ''}`;
+    ${gTab === 'mer' ? '' : tabsHtml}<div class="gbody">${body}</div>${fab ? `<button type="button" class="gfab" id="gFab">${fab}</button>` : ''}${gTab === 'bord' && gView === 'plan' && tables.length ? `<button type="button" class="gdown hidden" id="gDown">↓ ${tables.length} ${tables.length === 1 ? 'bord' : 'bord'}</button>` : ''}`;
   $('#gMeBtn', el).onclick = meMenu;
   $('#gHelpBtn', el).onclick = guideMenu;
   const fabBtn = $('#gFab', el);
@@ -1472,6 +1478,13 @@ function renderGuests() {
   } else if (gTab === 'program' || gTab === 'mer') {
     /* bundet separat */
   } else {
+    { const tg = $('#gUnpTog', el); if (tg) tg.onclick = () => { gUnpOpen = !gUnpOpen; renderGuests(); }; }
+    { const dn = $('#gDown', el), sc = $('.gbody', el), tb = $('.gtables', el);
+      if (dn && sc && tb) {
+        const chk = () => { const r = tb.getBoundingClientRect(), b = sc.getBoundingClientRect(); dn.classList.toggle('hidden', r.top < b.bottom - 260); };
+        sc.addEventListener('scroll', chk, { passive: true }); window.addEventListener('resize', chk); setTimeout(chk, 0);
+        dn.onclick = () => tb.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } }
     { const q = $('#gUq', el); if (q) {
       q.oninput = e => { gUq = e.target.value.trim(); const pos = e.target.selectionStart; renderGuests(); const n = $('#gUq'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) {} } };
       $('#gUg', el).onchange = e => { gUg = e.target.value; renderGuests(); }; $('#gUs', el).onchange = e => { gUs = e.target.value; renderGuests(); };
