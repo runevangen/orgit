@@ -262,10 +262,13 @@ button.chip{border:0;font:inherit;cursor:pointer;font-size:12px}
 .kfil{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .kfil .btn{padding:8px 12px;font-size:14px}
 .kfil select{width:auto;flex:1 1 140px;min-width:0;font-size:14px}
-.kfil2{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
-.kfil2 .remember{margin:0;font-size:14px}
-.kzoom{margin-left:auto;display:flex;gap:6px}
-.kzoom .btn{padding:6px 14px;min-width:44px}
+.kmapw{position:relative}
+.ktools{position:absolute;top:8px;right:8px;z-index:3;display:flex;flex-direction:column;gap:6px}
+.ktools .btn{padding:0;width:38px;height:38px;font-size:18px;background:var(--surface);opacity:.95}
+.ktools .kmouse{display:none}
+@media (hover:hover) and (pointer:fine){.ktools .kmouse{display:block}}
+.kfs .ktools{display:none}
+.kfil .btn#kFilBtn{margin-left:auto}
 .kwrap{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;height:min(62vh,560px);touch-action:none;position:relative;cursor:grab}
 .kfs{z-index:255!important}
 .kwrap.kfull{position:fixed;inset:0;z-index:250;height:auto;border-radius:0;border:0;background:var(--bg)}
@@ -1582,14 +1585,24 @@ function kartLayout(nodes, edges) {
   const pos = {}; nodes.forEach((g, i) => { pos[g.id] = { x: P[i].x * s + ox, y: P[i].y * s + oy }; });
   return { pos, W, H };
 }
+const kFilterOn = () => !!kart.grp || !kart.alle || !kart.skjul;
+function kFilterSheet() {
+  const opts = [['', 'Alle grupper'], ['none', 'Uten gruppe'], ...groups.map(x => [x.id, x.navn])];
+  const m = showModal(`<h2>Filter på kartet</h2><div class="field"><label for="kGrp">Gruppe</label><select id="kGrp">${opts.map(([v, t]) => `<option value="${v}" ${(kart.grp || '') === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
+    <label class="remember"><input type="checkbox" id="kAlle" ${kart.alle ? 'checked' : ''}> Vis de uten relasjoner</label>
+    <label class="remember"><input type="checkbox" id="kSkjul" ${kart.skjul ? 'checked' : ''}> Skjul de som ikke kommer</label>
+    <div class="row"><button class="btn" id="kReset" type="button">Nullstill</button><button class="btn primary" id="kOk" type="button">Ferdig</button></div>`);
+  const apply = () => { kart.grp = $('#kGrp', m).value; kart.alle = $('#kAlle', m).checked; kart.skjul = $('#kSkjul', m).checked; kart.pos = {}; closeModal(); renderGuests(); };
+  $('#kOk', m).onclick = apply;
+  $('#kReset', m).onclick = () => { $('#kGrp', m).value = ''; $('#kAlle', m).checked = true; $('#kSkjul', m).checked = true; };
+}
 function kartHtml() {
   const opts = [['', 'Alle grupper'], ['none', 'Uten gruppe'], ...groups.map(x => [x.id, x.navn])];
   return `<div class="gkart"><div class="kfil">
     <button class="btn ${kart.sammen ? 'on' : ''}" data-kt="sammen">💞 Skal sitte sammen</button><button class="btn ${kart.ikke ? 'on' : ''}" data-kt="ikke">⛔ Bør ikke</button>
-    <select id="kGrp" aria-label="Gruppe">${opts.map(([v, t]) => `<option value="${v}" ${kart.grp === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
-    <div class="kfil2"><label class="remember"><input type="checkbox" id="kAlle" ${kart.alle ? 'checked' : ''}> Vis de uten relasjoner</label><label class="remember"><input type="checkbox" id="kSkjul" ${kart.skjul ? 'checked' : ''}> Skjul de som ikke kommer</label>
-    <span class="kzoom"><button class="btn" id="kZm" aria-label="Zoom ut">−</button><button class="btn" id="kZp" aria-label="Zoom inn">+</button><button class="btn" id="kFit" aria-label="Tilpass kartet">Tilpass</button><button class="btn" id="kFull" aria-label="Vis kartet i fullskjerm">⛶ Fullskjerm</button></span></div>
-    <div class="kwrap" id="kWrap"></div><div class="kinfo" id="kInfo"></div><div class="kmiss" id="kMiss"></div>
+    <button class="btn ${kFilterOn() ? 'on' : ''}" id="kFilBtn" type="button">Filter${kFilterOn() ? ' ·' : ''} ▾</button></div>
+    <div class="kmapw">
+    <div class="kwrap" id="kWrap"></div><div class="ktools"><button class="btn" id="kFit" type="button" aria-label="Tilpass kartet" title="Tilpass kartet">⤢</button><button class="btn" id="kFull" type="button" aria-label="Fullskjerm" title="Fullskjerm">⛶</button><button class="btn kmouse" id="kZp" type="button" aria-label="Zoom inn">+</button><button class="btn kmouse" id="kZm" type="button" aria-label="Zoom ut">−</button></div></div><div class="kinfo" id="kInfo"></div><div class="kmiss" id="kMiss"></div>
     <div class="kgroups" id="kGroups"></div><div class="klegend"><span><i class="kl g"></i> skal sitte sammen</span><span><i class="kl r"></i> bør ikke sitte sammen</span><span><i class="ks"></i> stiplet ring = ingen relasjoner ennå</span><span><b>⚠</b> brudd i bordplanen</span><span>Ring = svar (grønn kommer, gul kanskje, grå venter)</span></div></div>`;
 }
 function kartHulls(nodes) {
@@ -1684,9 +1697,7 @@ function bindKart(el) {
     wrap.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12); }, { passive: false });
   }
   el.querySelectorAll('[data-kt]').forEach(b => b.onclick = () => { kart[b.dataset.kt] = !kart[b.dataset.kt]; kart.pos = {}; renderGuests(); });
-  $('#kGrp', el).onchange = e => { kart.grp = e.target.value; kart.pos = {}; renderGuests(); };
-  $('#kAlle', el).onchange = e => { kart.alle = e.target.checked; kart.pos = {}; renderGuests(); };
-  $('#kSkjul', el).onchange = e => { kart.skjul = e.target.checked; kart.pos = {}; renderGuests(); };
+  $('#kFilBtn', el).onclick = kFilterSheet;
   $('#kZm', el).onclick = () => { if (zoomBy) zoomBy(1 / 1.25); };
   $('#kZp', el).onclick = () => { if (zoomBy) zoomBy(1.25); };
   $('#kFit', el).onclick = () => { if (fitView) fitView(); };
