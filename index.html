@@ -1427,14 +1427,13 @@ function renderGuests() {
     const unpAll = unp, unpNorm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const unpF = unp.filter(g => (!gUs || g.status === gUs) && (!gUg || (gUg === 'none' ? !g.gruppe_id : g.gruppe_id === gUg)) && (!gUq || unpNorm(g.navn).includes(unpNorm(gUq)) || g.navn.toLowerCase().includes(gUq.toLowerCase())));
     const chip = g => `<div class="gchip" data-id="${g.id}" style="--sc:${GST[g.status].c}">${gAv(g, 'sm')}<div>${esc(g.navn)}${gTag(g)}${gConf.has(g.id) ? '<small>⚠</small>' : ''}${hintOf[g.id] ? `<small class="chint">💞 skal sitte med ${esc(hintOf[g.id].join(', '))}</small>` : ''}</div></div>`;
-    const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Bord</button><button class="btn ${gView === 'floor' ? 'on' : ''}" data-gview="floor">Lokale</button><button class="btn ${gView === 'liste' ? 'on' : ''}" data-gview="liste">Dra og slipp</button></div>`;
+    const viewToggle = `<div class="gview"><button class="btn ${gView === 'plan' ? 'on' : ''}" data-gview="plan">Bord</button><button class="btn ${gView === 'floor' ? 'on' : ''}" data-gview="floor">Lokale</button></div>`;
     const warn = issues.length ? `<div class="gwarn"><b>⚠ ${issues.length} ${issues.length === 1 ? 'relasjonsbrudd' : 'relasjonsbrudd'}</b>${issues.map((x, i) => `<button data-wi="${i}">${esc(x.msg)}</button>`).join('')}</div>` : '';
     body = `<div class="gbord"><div class="gside">${sum}${warn}<div class="gunp" data-dropunp><div class="gth"><h3>Ikke plassert</h3><span class="cnt">${unpF.length < unpAll.length ? `Viser ${unpF.length} av ${unpAll.length}` : unpAll.length + ' gjester'}</span></div>
       <div class="gunpf"><input id="gUq" type="search" placeholder="Søk blant de uplasserte …" value="${esc(gUq)}" class="${gUq ? 'fon' : ''}" autocomplete="off"><select id="gUg" aria-label="Gruppe" class="${gUg ? 'fon' : ''}"><option value="">Alle grupper</option><option value="none" ${gUg === 'none' ? 'selected' : ''}>Uten gruppe</option>${groups.map(x => `<option value="${x.id}" ${gUg === x.id ? 'selected' : ''}>${esc(x.navn)}</option>`).join('')}</select><select id="gUs" aria-label="Svar" class="${gUs ? 'fon' : ''}"><option value="">Alle svar</option>${['kommer', 'kanskje', 'venter'].map(k => `<option value="${k}" ${gUs === k ? 'selected' : ''}>${GST[k].n}</option>`).join('')}</select>${gUq || gUg || gUs ? '<button type="button" class="btn" id="gUclr">Fjern filter</button>' : ''}</div>
       <div class="gseats" data-bord="">${unpF.map(chip).join('') || `<p class="gempty" style="margin:8px 4px">${unpAll.length ? 'Ingen treff blant de uplasserte.' : 'Alle er plassert 🎉'}</p>`}</div></div><div class="gbtns">${tables.length ? '' : '<div class="gview" style="margin-top:10px"><button class="btn primary" id="gNewTable">+ Nytt bord</button></div>'}
       <button class="btn" id="gImg" style="width:100%;margin-top:8px">🖼 Bilde av bordplanen</button>
-      <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : gView === 'plan' ? tables.map(planTable).join('') : tables.map(t => { const used = seatsUsed(t.id), over = used > t.plasser; return `<div class="gtable ${over ? 'full' : ''}"><div class="gth"><h3>${esc(t.navn)}${tCap(t)}</h3><span class="cnt ${over ? 'over' : ''}">${used}/${t.plasser}</span><button data-tmenu="${t.id}" aria-label="Bordmeny">⋯</button></div>
-        <div class="gseats" data-bord="${t.id}">${guests.filter(g => g.bord_id === t.id && g.status !== 'kommer_ikke').map(chip).join('')}</div></div>`; }).join('')}</div></div></div>`;
+      <button class="btn" id="gCards" style="width:100%;margin-top:8px">🖨 Navnekort og bordkort (skriv ut)</button></div></div><div class="gmain">${viewToggle}<div class="gtables" ${gView === 'floor' ? 'style="display:block"' : ''}>${gView === 'floor' ? floorHtml() : tables.map(planTable).join('')}</div></div></div>`;
   }
   const tabsHtml = `<div class="gtabs"><div class="gtabsel"><button class="btn ${gTab === 'oversikt' ? 'on' : ''}" data-gtab="oversikt">Oversikt</button><button class="btn ${gTab === 'liste' ? 'on' : ''}" data-gtab="liste">Gjesteliste</button><button class="btn ${gTab === 'bord' ? 'on' : ''}" data-gtab="bord">Bord</button><button class="btn ${gTab === 'kart' ? 'on' : ''}" data-gtab="kart">Relasjoner</button></div></div>`;
   const fab = { liste: '+ Gjest', bord: '+ Bord', program: '+ Punkt' }[gTab];
@@ -1484,15 +1483,8 @@ function renderGuests() {
     if (gView === 'floor') bindFloor(el);
     el.querySelectorAll('[data-gview]').forEach(x => x.onclick = () => { gView = x.dataset.gview; renderGuests(); });
     el.querySelectorAll('[data-seat-g]').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) editGuest(x.dataset.seatG); });
-    if (gView !== 'liste') bindGuestDrag(el);
+    bindGuestDrag(el);
     el.querySelectorAll('[data-seat-e]').forEach(x => x.onclick = () => { if (!dragging && Date.now() - lastDrop > 400) seatPicker(x.dataset.seatE, +x.dataset.seatK); });
-    if (gView === 'liste') el.querySelectorAll('.gseats').forEach(l => new Sortable(l, {
-      group: 'gjest', animation: 150, draggable: '.gchip', ghostClass: 'ghost',
-      forceFallback: true, fallbackOnBody: true, fallbackTolerance: 4, delay: 150, delayOnTouchOnly: true, touchStartThreshold: 8,
-      scroll: true, bubbleScroll: true, scrollSensitivity: 70, scrollSpeed: 14, emptyInsertThreshold: 24,
-      onStart: () => { dragging = true; document.body.classList.add('dragging'); try { navigator.vibrate && navigator.vibrate(15); } catch {} },
-      onEnd: evt => { dragging = false; lastDrop = Date.now(); document.body.classList.remove('dragging'); saveGuest(evt.item.dataset.id, { bord_id: evt.to.dataset.bord || null }); }
-    }));
   }
 }
 async function addGuest(navn, antall, gruppe) {
@@ -1957,7 +1949,7 @@ const TOUR_TABLES = [
   { sel: '.gunp', title: 'Ikke plassert', text: 'Gjester som ennå ikke har bord. Dra en gjest herfra til et bord, eller trykk på en ledig plass.', before: toTables('plan') },
   { sel: '#gFab', title: 'Nytt bord', text: 'Trykk + Bord nederst til høyre. Velg bordtype og hvor mange bord du vil legge til.' },
   { sel: '#navMore', title: 'Bordtyper', before: toMer, text: 'Under Mer nederst: lag typer som 4-, 6- og 8-personsbord. Endrer du en type, oppdateres alle bord av den typen.' },
-  { sel: '.gview', title: 'Tre visninger', text: 'Bord viser bord med gjestene rundt. Lokale lar deg flytte bordene fritt. Dra og slipp er en enkel liste.' },
+  { sel: '.gview', title: 'To visninger', text: 'Bord viser bord med gjestene rundt. Lokale lar deg flytte bordene fritt.' },
   { sel: '[data-seat-e]', title: 'Ledig plass', text: 'Trykk på et «+» for å sette en gjest på den plassen.', missing: 'Når du har laget et bord, vises ledige plasser som «+». Trykk på en for å sette en gjest der.' },
   { sel: '.gtable', title: 'Dra til bord', text: 'Dra en gjest rett på et bord. På mobil holder du fingeren litt nede først. Bordet lyser blått, og blir rødt når det er fullt.', missing: 'Dra en gjest rett på et bord. På mobil holder du fingeren litt nede først.' },
   { sel: '.ftool', title: 'Lokale', text: 'Dra i midten av et bord for å flytte det. «+ Element» legger til scene, bar, inngang og mer. Zoom med − og +.', before: toTables('floor') },
