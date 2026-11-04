@@ -366,7 +366,6 @@ body.noscroll{overflow:hidden}
 .glb{background:none;border:0;padding:4px 0;font:inherit;font-size:13px;color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
 .glb i{width:10px;height:10px;border-radius:50%;display:inline-block}
 .glb.act{font-weight:800;text-decoration:underline}
-.glb.more{color:var(--accent);margin-left:auto;font-weight:600}
 .gsearch{display:flex;gap:6px;margin-bottom:8px}
 .gsearch input{flex:1 1 auto;min-width:0}
 .gsearch .btn{flex:none;padding:8px 12px}
@@ -1398,7 +1397,7 @@ function renderGuests() {
   const issues = relIssues(); gConf = new Set(issues.flatMap(i => [i.a.id, i.b.id]));
   const b = boards.find(x => x.id === boardId);
   const total = guests.reduce((n, g) => n + g.antall, 0);
-  const sum = `<div class="gsum gline">${['kommer', 'kanskje', 'venter', 'kommer_ikke'].map(k => `<button type="button" class="glb ${gFilter === k ? 'act' : ''}" data-gst="${k}" title="Vis bare ${GST[k].n.toLowerCase()}"><i style="background:${GST[k].c}"></i>${sumBy(k)} ${GST[k].n.toLowerCase()}</button>`).join('')}<button type="button" class="glb more" data-gtab="oversikt">Oversikt ›</button></div>`;
+  const sum = `<div class="gsum gline">${['kommer', 'kanskje', 'venter', 'kommer_ikke'].map(k => `<button type="button" class="glb ${gFilter === k ? 'act' : ''}" data-gst="${k}" title="Vis bare ${GST[k].n.toLowerCase()}"><i style="background:${GST[k].c}"></i>${sumBy(k)} ${GST[k].n.toLowerCase()}</button>`).join('')}</div>`;
   let body;
   if (gTab === 'liste') {
     body = `<div class="gliste">${pendingHtml()}${store.get('oppg_guide_g') ? '' : '<div class="ghint"><span>👋 Ny her? Ta en rask guide om gjester og bord.</span><button class="btn primary" id="gHintGo" type="button">Start guide</button><button class="btn" id="gHintNo" type="button">Ikke nå</button></div>'}${sum}
